@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bolete Pore Lab — How simple growth rules create organic patterns</title>
+<style>
+:root{
+  --paper:#eef0ea; --paper2:#e3e6dd; --panel:#f6f7f3; --ink:#22261f; --ink2:#5a6052; --ink3:#8a9082;
+  --line:#c9cdbf; --line2:#dde0d5; --accent:#5d6b4a; --accent2:#a67c2b; --focus:#2f5aa8;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Charter",Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Helvetica,Arial,sans-serif;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#1d1f1a; --paper2:#262923; --panel:#232620; --ink:#e6e8df; --ink2:#aab0a0; --ink3:#7b8272;
+  --line:#3d4237; --line2:#30342b; --accent:#9fb37e; --accent2:#d1a858; --focus:#8fb0ff; }}
+:root[data-theme="dark"]{
+  --paper:#1d1f1a; --paper2:#262923; --panel:#232620; --ink:#e6e8df; --ink2:#aab0a0; --ink3:#7b8272;
+  --line:#3d4237; --line2:#30342b; --accent:#9fb37e; --accent2:#d1a858; --focus:#8fb0ff; }
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;height:100%;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+/* ---------- top bar ---------- */
+.top{display:flex;align-items:baseline;gap:28px;padding:14px 22px 0;border-bottom:1px solid var(--line);position:sticky;top:env(safe-area-inset-top,0px);background:var(--paper);z-index:20}
+.top h1{font-family:var(--serif);font-weight:400;font-size:19px;margin:0 0 12px;letter-spacing:.01em}
+.top h1 span{color:var(--ink2);font-style:italic}
+.tabs{display:flex;gap:4px;margin-left:auto}
+.tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:6px 10px 12px;cursor:pointer;color:var(--ink2);font-size:14px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.tabs button:hover{color:var(--ink)}
+.view{display:none}.view.active{display:block}
+
+/* ---------- simulator layout ---------- */
+.sim{display:grid;grid-template-columns:296px minmax(0,1fr) 272px;min-height:calc(100vh - 54px)}
+.rail{border-right:1px solid var(--line);padding:16px 18px 40px;overflow-y:auto;max-height:calc(100vh - 54px);background:var(--panel)}
+.rail.right{border-right:0;border-left:1px solid var(--line)}
+.stage{position:relative;display:flex;align-items:center;justify-content:center;padding:18px;min-height:420px}
+.stage canvas{display:block;width:100%;height:100%;max-width:100%;cursor:crosshair;touch-action:none}
+.stage .wrap{position:relative;width:min(100%,calc(100vh - 110px));aspect-ratio:1/1}
+.stage .hint{position:absolute;left:0;right:0;bottom:-2px;text-align:center;color:var(--ink3);font-size:12px;pointer-events:none}
+.legend{position:absolute;right:0;top:0;display:none;align-items:center;gap:8px;font-size:11px;color:var(--ink2)}
+.legend.on{display:flex}
+.legend .bar{width:90px;height:8px;border:1px solid var(--line)}
+@media (max-width:1140px){.sim{grid-template-columns:280px minmax(0,1fr)}.rail.right{grid-column:1/-1;border-left:0;border-top:1px solid var(--line);max-height:none}}
+@media (max-width:760px){.top{gap:10px;padding:10px 14px 0}.top h1{font-size:17px;margin-bottom:8px}.top h1 span{display:none}.tabs button{padding:4px 8px 8px}.sim{grid-template-columns:1fr}.rail{max-height:none;border-right:0;border-bottom:1px solid var(--line)}.stage{order:-1;padding:10px}.stage .wrap{width:100%}}
+
+/* ---------- controls ---------- */
+.group{margin-bottom:22px}
+.group h3{font-family:var(--serif);font-weight:400;font-size:15px;margin:0 0 10px;color:var(--ink)}
+.ctl{margin-bottom:11px}
+.ctl .lab{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;color:var(--ink2);margin-bottom:2px}
+.ctl .lab b{font-weight:500;color:var(--ink)}
+.ctl .lab output{font-variant-numeric:tabular-nums;color:var(--ink2)}
+.ctl .help{font-size:11.5px;color:var(--ink3);line-height:1.35;margin-top:2px;display:none}
+.ctl:hover .help,.ctl:focus-within .help{display:block}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:18px;background:transparent;margin:0;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:1px;background:var(--line)}
+input[type=range]::-moz-range-track{height:1px;background:var(--line)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:var(--panel);border:1.5px solid var(--ink);margin-top:-5px}
+input[type=range]::-moz-range-thumb{width:11px;height:11px;border-radius:50%;background:var(--panel);border:1.5px solid var(--ink)}
+input[type=range].master::-webkit-slider-thumb{background:var(--accent2);border-color:var(--accent2)}
+input[type=range].master::-moz-range-thumb{background:var(--accent2);border-color:var(--accent2)}
+.scale3{display:flex;justify-content:space-between;font-size:11px;color:var(--ink3);margin-top:-4px}
+.btns{display:flex;flex-wrap:wrap;gap:6px}
+.btn{background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:5px 10px;cursor:pointer;font-size:12.5px;color:var(--ink);line-height:1.3}
+.btn:hover{border-color:var(--ink2)}
+.btn.primary{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.btn.on{border-color:var(--accent);color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.btn[disabled]{opacity:.45;cursor:default}
+.check{display:flex;align-items:center;gap:8px;font-size:13px;margin:5px 0;cursor:pointer}
+.check input{accent-color:var(--accent);margin:0}
+.seedrow{display:flex;align-items:center;gap:6px;font-size:12.5px}
+.seedrow code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;padding:3px 6px;border:1px dashed var(--line);background:var(--paper);color:var(--ink)}
+select.sel{width:100%;padding:5px 6px;border:1px solid var(--line);border-radius:3px;background:var(--panel)}
+.note{font-size:12px;color:var(--ink3);line-height:1.4}
+
+/* ---------- inspector ---------- */
+.insp dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0;font-size:12.5px}
+.insp dt{color:var(--ink2)}.insp dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.insp .empty{color:var(--ink3);font-size:12.5px;line-height:1.45}
+.stat{font-family:var(--serif);font-size:26px;line-height:1.1;margin:4px 0 2px}
+.stat small{font-family:var(--sans);font-size:12px;color:var(--ink2);margin-left:4px}
+
+/* ---------- math tab ---------- */
+.math{max-width:760px;margin:0 auto;padding:40px 22px 120px;font-family:var(--serif);font-size:17px;line-height:1.62}
+.math h2{font-weight:400;font-size:30px;line-height:1.2;margin:70px 0 14px}
+.math h2:first-of-type{margin-top:10px}
+.math h2 .n{display:inline-block;min-width:1.6em;color:var(--ink3);font-size:18px;vertical-align:.2em}
+.math h3{font-weight:400;font-size:20px;margin:36px 0 10px}
+.math p{margin:0 0 16px}
+.math .lede{font-size:20px;color:var(--ink2);line-height:1.5}
+.math .caveat{border-left:2px solid var(--accent2);padding:6px 14px;color:var(--ink2);font-size:16px;margin:18px 0}
+.math ul{padding-left:22px}.math li{margin-bottom:5px}
+.eq{font-family:"Cambria Math","STIX Two Math","Times New Roman",serif;font-size:21px;text-align:center;margin:18px 0;letter-spacing:.02em}
+.eq.small{font-size:18px}
+.sym{font-style:normal;font-family:"Cambria Math","STIX Two Math","Times New Roman",serif;border-bottom:1px dotted var(--accent);cursor:help;padding:0 1px}
+.sym:hover{color:var(--accent)}
+.breakdown{display:grid;grid-template-columns:auto 1fr;gap:6px 18px;font-family:var(--sans);font-size:14px;margin:10px 0 22px;align-items:baseline}
+.breakdown .k{font-family:"Cambria Math","STIX Two Math","Times New Roman",serif;font-size:19px;text-align:right}
+.fig{margin:22px 0 28px;font-family:var(--sans);font-size:13px;color:var(--ink2)}
+.fig canvas{display:block;width:100%;height:auto;border:1px solid var(--line);background:var(--panel);touch-action:none}
+.fig .cap{margin-top:8px;line-height:1.45}
+.fig .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0}
+.fig .row label{display:flex;align-items:center;gap:6px}
+.fig .row input[type=range]{width:160px}
+.fig .readout{font-family:"Cambria Math","STIX Two Math","Times New Roman",serif;font-size:17px;color:var(--ink)}
+.fig .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fig .two div{text-align:center}
+@media (max-width:560px){.fig .two{grid-template-columns:1fr}}
+.pipe{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;font-family:var(--sans)}
+.pipe button{background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:6px 10px;font-size:13px;cursor:pointer;color:var(--ink2)}
+.pipe button.on{color:var(--ink);border-color:var(--ink)}
+.pipe button .i{color:var(--ink3);margin-right:5px}
+details{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:6px 0;margin:28px 0}
+details summary{cursor:pointer;font-size:20px;padding:10px 0;list-style:none;display:flex;align-items:center;gap:10px}
+details summary::before{content:"+";font-family:var(--sans);width:22px;height:22px;border:1px solid var(--line);border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:15px;color:var(--ink2)}
+details[open] summary::before{content:"−"}
+.bigidea{border:1px solid var(--line);padding:24px 26px;margin-top:40px;background:var(--panel)}
+.bigidea .chain{font-family:var(--sans);font-size:14px;line-height:1.9;margin:10px 0 16px}
+.bigidea .chain span{display:block;padding-left:0}
+.bigidea .chain span::before{content:"↓";color:var(--ink3);display:block;line-height:1;font-size:18px;margin:4px 0 4px 10px}
+.bigidea .chain span:first-child::before{content:none}
+.gloss{font-family:var(--sans);font-size:14px}
+.gloss input{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:3px;background:var(--panel);margin:10px 0 16px;font-size:15px}
+.gcard{display:grid;grid-template-columns:72px 1fr;gap:4px 16px;padding:14px 0;border-top:1px solid var(--line2)}
+.gcard .s{font-family:"Cambria Math","STIX Two Math","Times New Roman",serif;font-size:30px;line-height:1;color:var(--ink)}
+.gcard .s small{display:block;font-family:var(--sans);font-size:11px;color:var(--ink3);margin-top:6px}
+.gcard .f{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:13.5px}
+.gcard .f em{font-style:normal;color:var(--ink3)}
+.pop{position:absolute;z-index:50;max-width:300px;background:var(--panel);color:var(--ink);border:1px solid var(--line);box-shadow:0 6px 24px rgba(0,0,0,.14);padding:12px 14px;font-family:var(--sans);font-size:13px;line-height:1.45;display:none}
+.pop b{font-size:15px;display:block;margin-bottom:3px}
+.pop i{color:var(--ink2);display:block;margin-bottom:6px}
+.pop.on{display:block}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:8px 14px;border-radius:3px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:99}
+.toast.on{opacity:1}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>Bolete Pore Lab <span>— how simple growth rules create organic patterns</span></h1>
+  <nav class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="sim">Pore simulator</button>
+    <button role="tab" aria-selected="false" data-tab="math">The math</button>
+  </nav>
+</header>
+
+<!-- ================= SIMULATOR ================= -->
+<section id="view-sim" class="view active">
+<div class="sim">
+  <aside class="rail">
+    <div class="group">
+      <h3>Maturity</h3>
+      <div class="ctl">
+        <input type="range" class="master" id="maturity" min="0" max="1" step="0.005" value="0.4" aria-label="Maturity">
+        <div class="scale3"><span>Young</span><span>Mature</span><span>Old</span></div>
+        <div class="help" style="display:block">Master slider. Moves growth, wall thickness, boundary noise and merging together, the way they change as a real cap ages. The sliders below can then be adjusted one at a time.</div>
+      </div>
+      <div class="btns" style="margin-top:8px">
+        <button class="btn primary" id="play">Play growth</button>
+        <button class="btn" id="pause" disabled>Pause</button>
+        <button class="btn" id="reset">Reset</button>
+        <button class="btn" id="randomize">Randomize</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>Presets</h3>
+      <div class="btns" id="presets"></div>
+    </div>
+
+    <div class="group">
+      <h3>Parameters</h3>
+      <div id="sliders"></div>
+    </div>
+
+    <div class="group">
+      <h3>Random seed</h3>
+      <div class="seedrow"><code id="seedlabel">—</code><button class="btn" id="copyseed">Copy</button><button class="btn" id="newseed">New seed</button></div>
+      <p class="note" style="margin:8px 0 0">Same seed + same parameters = the same pattern, every time.</p>
+    </div>
+  </aside>
+
+  <main class="stage">
+    <div class="wrap">
+      <canvas id="cap" aria-label="Simulated underside of a bolete cap"></canvas>
+      <div class="legend" id="legend"><span id="legmin"></span><span class="bar" id="legbar"></span><span id="legmax"></span></div>
+      <div class="hint">Click a pore to inspect it</div>
+    </div>
+  </main>
+
+  <aside class="rail right">
+    <div class="group">
+      <h3>Colour</h3>
+      <div class="btns" id="colormodes">
+        <button class="btn on" data-cm="bio">Biological</button>
+        <button class="btn" data-cm="math">Mathematical</button>
+        <button class="btn" data-cm="mono">Monochrome</button>
+      </div>
+      <div id="metricwrap" style="margin-top:8px;display:none">
+        <select class="sel" id="metric" aria-label="Colour cells by">
+          <option value="elong">Colour by elongation</option>
+          <option value="area">Colour by area</option>
+          <option value="dist">Colour by distance from centre</option>
+          <option value="nb">Colour by number of neighbours</option>
+        </select>
+      </div>
+    </div>
+    <div class="group">
+      <h3>Show</h3>
+      <label class="check"><input type="checkbox" id="ov-seeds">Seed points</label>
+      <label class="check"><input type="checkbox" id="ov-bounds">Cell boundaries</label>
+      <label class="check"><input type="checkbox" id="ov-vectors">Growth vectors</label>
+      <label class="check"><input type="checkbox" id="ov-axes">Radial axes</label>
+      <label class="check"><input type="checkbox" id="ov-nbrs">Neighbour relationships</label>
+    </div>
+    <div class="group insp">
+      <h3>Inspect a pore</h3>
+      <div id="inspect"><p class="empty">Click any pore on the cap. Its neighbours light up and its geometry is listed here: where its seed is, how much it has grown, and which way it stretched.</p></div>
+    </div>
+    <div class="group">
+      <h3>Model at a glance</h3>
+      <div id="glance" class="note"></div>
+    </div>
+  </aside>
+</div>
+</section>
+
+<!-- ================= THE MATH ================= -->
+<section id="view-math" class="view">
+<article class="math">
+
+<h2>What are we trying to model?</h2>
+<p class="lede">Turn a bolete over and the underside of the cap is not gills but a sponge: thousands of tiny tubes, standing side by side, each open at the bottom. What you see is the pattern made by all those openings.</p>
+<p>That pattern is what this app draws. It is a flat, two-dimensional picture — the mouths of the tubes — and it changes with age. On a young cap the openings are small and nearly round. As the cap expands they stretch, press against each other, and in some species run together into elongated, maze-like channels.</p>
+<p>The question we are asking is modest: <em>what is the simplest set of rules that produces pictures like that?</em> Not every pore drawn by hand — just a few local rules applied everywhere at once.</p>
+<div class="caveat">This is an approximation inspired by mathematical growth systems. It is <em>not</em> a proven account of how a real bolete builds its tubes. Biologists use models of this family, but the actual tissue is more complicated than anything here.</div>
+
+<h2><span class="n">1</span>Seed points</h2>
+<p>Everything begins with points. Each one marks roughly where the centre of a future pore will be. In the figure below you can drag the points around; one of them is labelled with its position.</p>
+<div class="fig">
+  <canvas id="f-seeds" width="600" height="300"></canvas>
+  <div class="row"><span class="readout" id="f-seeds-read"></span></div>
+  <div class="cap">Drag a point. The label shows its horizontal and vertical position, measured from the bottom-left corner.</div>
+</div>
+<p>To talk about a point we have to name it and say where it is. Mathematicians write a single point as</p>
+<div class="eq"><i class="sym" data-g="P">P</i><sub><i class="sym" data-g="i">i</i></sub> = (<i class="sym" data-g="x">x</i><sub>i</sub>, <i class="sym" data-g="y">y</i><sub>i</sub>)</div>
+<p>Every letter here is doing a plain job:</p>
+<div class="breakdown">
+  <span class="k">P</span><span>a point — just the name we give to “a seed”</span>
+  <span class="k">i</span><span>a label saying <em>which</em> point: pore number 1, 2, 3 … The small lowered letter is called a subscript; it is an index, like a numbered tag on a specimen.</span>
+  <span class="k">x</span><span>how far to the right the point sits</span>
+  <span class="k">y</span><span>how far up the point sits</span>
+</div>
+<p>Two numbers like (x, y) are called <strong>coordinates</strong>. They are just an address: “go this far across, then this far up, and you will find the point.” A map grid reference works the same way.</p>
+
+<h2><span class="n">2</span>Who owns each piece of space?</h2>
+<p>Now imagine the cap surface as a field, and the seeds as the places pores will grow from. Each pore claims the ground nearest to it. For <em>every</em> location on the surface we ask one question:</p>
+<p class="lede" style="text-align:center">“Which seed is closest to here?”</p>
+<p>That location belongs to that seed. Do this everywhere and the surface is carved into regions, one per seed, with every region touching its neighbours. This carving is called a <strong>Voronoi tessellation</strong> (after the mathematician Georgy Voronoi; “tessellation” just means a tiling with no gaps).</p>
+<div class="fig">
+  <div class="pipe" id="f-vor-stages"><button class="on" data-s="0">Seeds</button><button data-s="1">Nearest-point regions</button><button data-s="2">Cellular pattern</button></div>
+  <canvas id="f-vor" width="600" height="320"></canvas>
+  <div class="cap">Drag the seeds. Tap anywhere else to drop a probe point: lines are drawn to every seed and the closest one is highlighted — that is the seed the probe location “belongs to”.</div>
+</div>
+<p>To decide which seed is closest we need to measure distance. The rule for the straight-line distance between two points is</p>
+<div class="eq"><i class="sym" data-g="d">d</i> = <i class="sym" data-g="sqrt">√</i>((x₂ − x₁)<i class="sym" data-g="sq">²</i> + (y₂ − y₁)²)</div>
+<p>It looks dense, but it is a recipe with four steps:</p>
+<div class="breakdown">
+  <span class="k">x₁, y₁</span><span>the first point’s position; x₂, y₂ the second’s</span>
+  <span class="k">−</span><span>subtract: how far apart are they horizontally? How far apart vertically?</span>
+  <span class="k">²</span><span>multiply each of those gaps by itself (“squared”)</span>
+  <span class="k">+</span><span>add the two squared gaps together</span>
+  <span class="k">√</span><span>take the square root — the number which, multiplied by itself, gives the total. This undoes the squaring and returns a plain distance.</span>
+  <span class="k">d</span><span>the result: the distance</span>
+</div>
+<div class="fig">
+  <canvas id="f-dist" width="600" height="260"></canvas>
+  <div class="row"><span class="readout" id="f-dist-read"></span></div>
+  <div class="cap">Drag either point. The horizontal gap and vertical gap form two sides of a right-angled triangle; the distance is the long side. (This is Pythagoras’ theorem wearing coordinates.)</div>
+</div>
+
+<h2><span class="n">3</span>Why the cells become polygons</h2>
+<p>Look at the boundary between two neighbouring regions. Every point on it is <em>exactly</em> as far from one seed as from the other — neither pore is closer, so neither wins. The set of all such tie points between two seeds is a straight line, running at right angles across the middle of the line that joins them.</p>
+<p>A pore is hemmed in by several neighbours, so its region is cut by several of these straight tie-lines. A shape bounded by straight lines is a polygon. That is the whole reason the cells are polygonal rather than round: each pore pushes outward until it meets the equal-distance line with the next pore, and straight cuts make corners.</p>
+<div class="fig">
+  <canvas id="f-poly" width="600" height="320"></canvas>
+  <div class="row"><label><input type="checkbox" id="f-poly-bis" checked> Show the tie-lines (perpendicular bisectors) for the highlighted seed</label></div>
+  <div class="cap">Five seeds. Tap a seed to highlight it, then drag any seed: the tie-lines move and the central cell changes shape, but it always stays a polygon.</div>
+</div>
+<p>Notice what we have <em>not</em> done. Nobody drew the cell. We only placed points and applied one rule — “nearest seed wins” — and the polygons appeared on their own.</p>
+
+<h2><span class="n">4</span>The mushroom grows</h2>
+<p>A cap does not stay the size it was born. It expands outward from its centre, and that expansion is what deforms the pores. To describe growth that spreads out from a centre, (x, y) is a clumsy address. A better one is: <em>how far from the centre</em>, and <em>which direction</em>.</p>
+<div class="eq">(<i class="sym" data-g="r">r</i>, angle)</div>
+<p>Mathematicians write the angle with a Greek letter, <i class="sym" data-g="theta">θ</i>, pronounced “theta”. So a location is (r, θ):</p>
+<div class="breakdown">
+  <span class="k">r</span><span>the distance from the centre of the cap (“radius”)</span>
+  <span class="k">θ</span><span>the direction, measured as an angle from a fixed reference line — like a compass bearing</span>
+</div>
+<div class="fig">
+  <canvas id="f-polar" width="600" height="320"></canvas>
+  <div class="row"><span class="readout" id="f-polar-read"></span></div>
+  <div class="cap">Drag the point. The same location is shown both ways: as (x, y) counted from the corner, and as (r, θ) counted from the centre.</div>
+</div>
+<p>These are called <strong>polar coordinates</strong>. Nothing about the point has changed; we have only changed how we describe where it is. The reason to bother is the next step: growth that is “outward from the centre” is easy to write in terms of r.</p>
+
+<h2><span class="n">5</span>Different directions can grow differently</h2>
+<p>Suppose every part of the cap gets a bit bigger. A point that was at distance r from the centre is now farther out. Growth multiplies distance by a factor. We write the factor as <i class="sym" data-g="G">G</i>, for “growth”, and put a small letter underneath to say which direction we mean:</p>
+<div class="breakdown">
+  <span class="k">G<sub>r</sub></span><span>the radial growth factor — growth <em>outward</em>, along r</span>
+  <span class="k">G<sub>θ</sub></span><span>the circumferential growth factor — growth <em>around</em> the cap, along θ</span>
+</div>
+<div class="eq">r<sub>new</sub> = r<sub>old</sub> <i class="sym" data-g="times">×</i> <i class="sym" data-g="Gr">G<sub>r</sub></i></div>
+<p>In words: the new distance from the centre equals the old distance multiplied by the radial growth amount. A number:</p>
+<div class="fig">
+  <div class="row">
+    <label>r<sub>old</sub> <input type="range" id="f-grow-r" min="1" max="20" step="1" value="10"></label>
+    <label>G<sub>r</sub> <input type="range" id="f-grow-g" min="0.5" max="3" step="0.1" value="1.5"></label>
+  </div>
+  <canvas id="f-grow" width="600" height="150"></canvas>
+  <div class="row"><span class="readout" id="f-grow-read"></span></div>
+  <div class="cap">With r<sub>old</sub> = 10 and G<sub>r</sub> = 1.5 the new distance is 10 × 1.5 = 15. The point moved outward. A factor of 1 means no change; below 1 would mean shrinking.</div>
+</div>
+
+<h3>Isotropic and anisotropic</h3>
+<p>If something grows by the same factor in every direction, we say its growth is <strong>isotropic</strong> (“iso” = same, “tropic” = turning or direction). A balloon being inflated is close to isotropic: it keeps its shape and just gets bigger.</p>
+<p>If it grows more in one direction than another, the growth is <strong>anisotropic</strong> — “not the same in all directions.” Pulling a piece of chewing gum makes it long in one direction and thin in the other.</p>
+<p>For a cap, the comparison that matters is radial against circumferential:</p>
+<div class="breakdown">
+  <span class="k">G<sub>r</sub> <i class="sym" data-g="approx">≈</i> G<sub>θ</sub></span><span>roughly equal growth in both directions → pores keep their shape, just enlarge</span>
+  <span class="k">G<sub>r</sub> <i class="sym" data-g="gt">&gt;</i> G<sub>θ</sub></span><span>stronger outward growth → pores stretch radially, like spokes</span>
+  <span class="k">G<sub>r</sub> <i class="sym" data-g="lt">&lt;</i> G<sub>θ</sub></span><span>stronger around-the-cap growth → pores stretch sideways, into rings</span>
+</div>
+<div class="fig">
+  <div class="row"><label>Radial ÷ circumferential growth, G<sub>r</sub>/G<sub>θ</sub> <input type="range" id="f-aniso-k" min="0.5" max="2.6" step="0.05" value="1.8"></label><span class="readout" id="f-aniso-read"></span></div>
+  <div class="two">
+    <div><canvas id="f-aniso-a" width="300" height="260"></canvas>Isotropic: G<sub>r</sub> = G<sub>θ</sub></div>
+    <div><canvas id="f-aniso-b" width="300" height="260"></canvas>Anisotropic: G<sub>r</sub> ≠ G<sub>θ</sub></div>
+  </div>
+  <div class="cap">The same seeds and the same cells on both sides. Only the growth factors differ. Move the slider past 1 and the right-hand pores lengthen outward; below 1 they flatten into rings.</div>
+</div>
+<p>One subtlety that the simulator reflects. If a cap grows outward much more than around, the stretched tissue would eventually have to tear — or make new pores. Real boletes do add new tubes as they age. The <em>anisotropy</em> slider in the simulator sets how much of that growth difference is expressed as pore shape (high) rather than absorbed, as if by new pores forming (low).</p>
+
+<h2><span class="n">6</span>Biological randomness</h2>
+<p>A real mushroom is not a perfect mathematical object. Growth differs a little from place to place because of the local tissue, the neighbours pressing in, the stage each pore reached, the physical constraints of the cap, uneven nutrients, and plain microscopic variation.</p>
+<p>We can keep all of that out of the equations and still represent it, by saying that the growth at a particular spot is the average growth plus a small wobble:</p>
+<div class="eq">G<sub>local</sub> = G<sub>base</sub> + <i class="sym" data-g="eps">ε</i></div>
+<div class="breakdown">
+  <span class="k">G<sub>local</sub></span><span>growth at this particular location</span>
+  <span class="k">G<sub>base</sub></span><span>the average growth everywhere</span>
+  <span class="k">ε</span><span>a small random, local variation. This is the Greek letter <em>epsilon</em>, which mathematicians habitually use for “a small amount”: an error, a wobble, a noise term.</span>
+</div>
+<div class="fig">
+  <div class="row"><label>ε <input type="range" id="f-eps" min="0" max="1" step="0.01" value="0"></label><span class="readout" id="f-eps-read"></span></div>
+  <canvas id="f-eps-c" width="600" height="320"></canvas>
+  <div class="cap">At ε = 0 the cells are the clean tie-line polygons. Raise ε and two things happen: some pores push harder than their neighbours (cell competition), and the walls pick up small wobbles (boundary noise). The underlying cells never change — only how they are deformed.</div>
+</div>
+<p>In the simulator, ε is split into a few sliders — irregularity of the seeds, competition between neighbours, and boundary noise — so you can see which kind of variation does what. Crucially the random numbers are <em>seeded</em>: the same seed value always produces the same wobbles, which is why a pattern can be reproduced exactly.</p>
+
+<details>
+<summary>Want to go one level deeper? Growth fields and gradients</summary>
+<p>So far growth has been a single number per direction. A richer idea is that the growth factor can be different at every location — a <strong>growth field</strong>. We write it</p>
+<div class="eq">G(x, y)</div>
+<p>read “G of x and y”: give me a location, and I will tell you how fast the tissue grows there. (The brackets mean “depends on”, not multiplication.)</p>
+<p>Once growth varies from place to place, a natural question is: standing at a point, in which direction does the growth increase <em>fastest</em>, and how steeply? The answer is called the <strong>gradient</strong> of G, written with an upside-down triangle:</p>
+<div class="eq"><i class="sym" data-g="nabla">∇</i>G</div>
+<p>The triangle is called “nabla” (after an ancient harp of that shape) and is read “grad G”. At every point the gradient is an arrow: it points uphill — toward faster growth — and it is longer where the growth changes more sharply. No calculus is needed to read the picture.</p>
+<div class="fig">
+  <canvas id="f-grad" width="600" height="300"></canvas>
+  <div class="cap">Shading shows the growth field G: brighter means faster growth. Drag the bright patch around. The arrows are ∇G; they always point toward the brightest region and are longest on the slopes, shortest on the flat parts.</div>
+</div>
+<p>Connecting this to the mushroom: if tissue grows faster in one region of the cap than another, pores sitting between the two regions get pulled unevenly, and neighbouring cells deform according to that changing field. The simulator’s radial and circumferential growth factors are a simple special case of a growth field whose value depends only on r.</p>
+</details>
+
+<details>
+<summary>Want to go two levels deeper? Reaction–diffusion</summary>
+<p>Scientists who model pattern formation in living tissue — spots, stripes, branching — often use equations that track how an amount of material changes over time as it spreads and reacts. One classic shape of such an equation is</p>
+<div class="eq"><i class="sym" data-g="partial">∂</i><i class="sym" data-g="H">H</i>/∂<i class="sym" data-g="t">t</i> = <i class="sym" data-g="D">D</i><i class="sym" data-g="lap">∇²</i>H + growth − loss</div>
+<p>Every symbol has a plain meaning:</p>
+<div class="breakdown">
+  <span class="k">H</span><span>the amount, or density, of fungal material at a point</span>
+  <span class="k">t</span><span>time</span>
+  <span class="k">∂H/∂t</span><span>how quickly H is changing as time passes. The curly ∂ is a “partial” d: we are asking only about change over time, holding position fixed.</span>
+  <span class="k">D</span><span>the diffusion strength: how readily the material spreads out to its surroundings</span>
+  <span class="k">∇²H</span><span>the Laplacian of H. Roughly: how different this spot is from the average of its immediate surroundings. Negative in a hump (higher than around it), positive in a hollow.</span>
+  <span class="k">growth − loss</span><span>whatever is being added by growth and removed by consumption or decay</span>
+</div>
+<p>So the whole line says: <em>the material at a point changes because it spreads toward (or from) its neighbours, because it grows, and because it is lost.</em> Give the equation two interacting substances and the right constants and it spontaneously produces spots and stripes — the mechanism Alan Turing proposed in 1952.</p>
+<div class="caveat">This app does not need to solve this equation to generate the pore model. The pores you see come from seeds, nearest-point regions and growth factors. The equation is here to show how much deeper mathematical biology can go.</div>
+</details>
+
+<h2><span class="n">7</span>The model, step by step</h2>
+<p>Here is the whole pipeline, one operation at a time. Each stage adds exactly one mathematical rule. Click through and watch which visual feature each rule is responsible for.</p>
+<div class="fig">
+  <div class="pipe" id="pipe"></div>
+  <canvas id="f-pipe" width="600" height="420"></canvas>
+  <div class="cap" id="pipe-cap"></div>
+</div>
+
+<div class="bigidea">
+<h2 style="margin-top:0">The big idea</h2>
+<p>The computer was never told what a pore looks like. There is no drawing of a pore anywhere in the program. Instead it was given a short list of local rules and told to apply them everywhere at once:</p>
+<div class="chain"><span>place points</span><span>divide the space between neighbours</span><span>grow the surface</span><span>stretch different directions by different amounts</span><span>add small local variations</span></div>
+<p>Complex, lifelike pore patterns emerge from those simple rules. Nobody designed the maze; it is what the rules add up to. This phenomenon — where many simple local interactions produce organised structure at a larger scale — is called <strong>emergence</strong>, and it shows up throughout nature: in snowflakes, in flocks, in the stripes on a fish.</p>
+<p>The simulation demonstrates how complex biological-looking geometry can arise from relatively simple mathematical rules. It should not be read as a complete biological explanation of how real bolete hymenophores develop; what it shows is that such patterns do not need a complicated explanation to exist.</p>
+</div>
+
+<h2>Glossary of symbols</h2>
+<div class="gloss">
+  <input type="search" id="gsearch" placeholder="Search a symbol or a word — try “theta”, “square root”, “growth”">
+  <div id="glist"></div>
+</div>
+
+</article>
+</section>
+
+<div class="pop" id="pop" role="dialog"></div>
+<div class="toast" id="toast"></div>
+<script>
+'use strict';
+/* ========================================================================
+   CORE: seeded randomness, noise, Voronoi, the pore model, rendering
+   ======================================================================== */
+function hashStr(s){let h=1779033703^s.length;for(let i=0;i<s.length;i++){h=Math.imul(h^s.charCodeAt(i),3432918353);h=h<<13|h>>>19;}return ()=>{h=Math.imul(h^h>>>16,2246822507);h=Math.imul(h^h>>>13,3266489909);return (h^=h>>>16)>>>0;};}
+function mulberry32(a){return ()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function rngFrom(str){return mulberry32(hashStr(str)());}
+function gaussFrom(rng){return ()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};}
+function newSeedString(){const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let s='BOL-';for(let i=0;i<6;i++)s+=c[Math.floor(Math.random()*c.length)];return s;}
+function hash2(i,j){let h=(i*73856093)^(j*19349663);h=Math.imul(h^h>>>13,0x5bd1e995);h^=h>>>15;return (h>>>0)/4294967296;}
+
+function makeNoise(rng){
+  const P=new Uint8Array(512),perm=[];for(let i=0;i<256;i++)perm[i]=i;
+  for(let i=255;i>0;i--){const j=Math.floor(rng()*(i+1));const t=perm[i];perm[i]=perm[j];perm[j]=t;}
+  for(let i=0;i<512;i++)P[i]=perm[i&255];
+  const g=new Float32Array(256);for(let i=0;i<256;i++)g[i]=rng()*2-1;
+  const v=(ix,iy)=>g[P[(P[ix&255]+iy)&255]];
+  const fade=t=>t*t*(3-2*t);
+  return (x,y)=>{const ix=Math.floor(x),iy=Math.floor(y),fx=x-ix,fy=y-iy,u=fade(fx),w=fade(fy);
+    const a=v(ix,iy),b=v(ix+1,iy),c=v(ix,iy+1),d=v(ix+1,iy+1);return (a+(b-a)*u)*(1-w)+(c+(d-c)*u)*w;};
+}
+
+/* Keep the part of a convex polygon with a*x+b*y<=c. ids[k] = owner of edge k (k -> k+1). */
+function clipHalf(poly,ids,a,b,c,id){
+  const n=poly.length,out=[],oid=[];
+  for(let k=0;k<n;k++){
+    const Pp=poly[k],Q=poly[(k+1)%n],eid=ids[k];
+    const dP=a*Pp.x+b*Pp.y-c,dQ=a*Q.x+b*Q.y-c,inP=dP<=0,inQ=dQ<=0;
+    if(inP&&inQ){out.push(Pp);oid.push(eid);}
+    else if(inP&&!inQ){out.push(Pp);oid.push(eid);const t=dP/(dP-dQ);out.push({x:Pp.x+(Q.x-Pp.x)*t,y:Pp.y+(Q.y-Pp.y)*t});oid.push(id);}
+    else if(!inP&&inQ){const t=dP/(dP-dQ);out.push({x:Pp.x+(Q.x-Pp.x)*t,y:Pp.y+(Q.y-Pp.y)*t});oid.push(eid);}
+  }
+  return [out,oid];
+}
+function bisectClip(poly,ids,s,q,j){ /* keep points closer to s than q */
+  const a=q.x-s.x,b=q.y-s.y,c=(q.x*q.x+q.y*q.y-s.x*s.x-s.y*s.y)/2;return clipHalf(poly,ids,a,b,c,j);
+}
+/* Brute-force Voronoi for small demos. clip = convex polygon [{x,y}] */
+function voronoiSmall(pts,clip){
+  return pts.map((s,i)=>{let poly=clip.slice(),ids=clip.map(()=>-1);
+    for(let j=0;j<pts.length;j++){if(j===i)continue;[poly,ids]=bisectClip(poly,ids,s,pts[j],j);if(!poly.length)break;}
+    return {poly,ids};});
+}
+/* Grid-accelerated Voronoi inside a unit circle. */
+function voronoiDisk(seeds,g){
+  const N=seeds.length,G=Math.ceil(2.2/g)+1,grid=new Map();
+  const key=(ix,iy)=>ix*4096+iy;const ci=v=>Math.floor((v+1.1)/g);
+  for(let i=0;i<N;i++){const k=key(ci(seeds[i].x),ci(seeds[i].y));let a=grid.get(k);if(!a){a=[];grid.set(k,a);}a.push(i);}
+  const circ=[];const M=72;for(let k=0;k<M;k++){const t=k*2*Math.PI/M;circ.push([Math.cos(t),Math.sin(t),Math.cos(Math.PI/M)]);}
+  const res=new Array(N);
+  for(let i=0;i<N;i++){
+    const s=seeds[i];let poly=[{x:-1.4,y:-1.4},{x:1.4,y:-1.4},{x:1.4,y:1.4},{x:-1.4,y:1.4}],ids=[-1,-1,-1,-1];
+    const sx=ci(s.x),sy=ci(s.y);let maxV2=8;
+    const upd=()=>{let m=0;for(const v of poly){const d=(v.x-s.x)**2+(v.y-s.y)**2;if(d>m)m=d;}maxV2=m;};
+    for(let ring=0;ring<=G;ring++){
+      const cand=[];
+      for(let dx=-ring;dx<=ring;dx++)for(let dy=-ring;dy<=ring;dy++){
+        if(Math.max(Math.abs(dx),Math.abs(dy))!==ring)continue;
+        const a=grid.get(key(sx+dx,sy+dy));if(a)for(const j of a)if(j!==i)cand.push(j);
+      }
+      cand.sort((a,b)=>((seeds[a].x-s.x)**2+(seeds[a].y-s.y)**2)-((seeds[b].x-s.x)**2+(seeds[b].y-s.y)**2));
+      for(const j of cand){const q=seeds[j];const d2=(q.x-s.x)**2+(q.y-s.y)**2;if(d2>4*maxV2)break;[poly,ids]=bisectClip(poly,ids,s,q,j);upd();}
+      const minNext=ring*g;if(minNext*minNext>4*maxV2)break;
+    }
+    let outside=false;for(const v of poly){if(v.x*v.x+v.y*v.y>1){outside=true;break;}}
+    if(outside){for(const [a,b,c] of circ){[poly,ids]=clipHalf(poly,ids,a,b,c,-1);if(!poly.length)break;}}
+    res[i]={poly,ids};
+  }
+  return res;
+}
+function polyArea(v){let a=0;for(let i=0,n=v.length;i<n;i++){const p=v[i],q=v[(i+1)%n];a+=p.x*q.y-q.x*p.y;}return Math.abs(a)/2;}
+function pointInPoly(v,x,y){let inside=false;for(let i=0,j=v.length-1;i<v.length;j=i++){const xi=v[i].x,yi=v[i].y,xj=v[j].x,yj=v[j].y;if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))inside=!inside;}return inside;}
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+
+const DEFAULTS={count:320,irregularity:0.3,radialGrowth:1.75,circGrowth:1.4,anisotropy:0.7,boundaryNoise:0.34,competition:0.4,merge:0.04,wall:0.38,maturity:0.4};
+const TOPO=new Set(['count','irregularity']);
+
+class PoreModel{
+  constructor(seed,params){this.params=Object.assign({},DEFAULTS,params||{});this.seedStr=seed||'BOL-DEFAULT';this.cells=[];this.dirtyTopo=true;this.dirtyDeform=true;}
+  setSeed(s){this.seedStr=s;this.dirtyTopo=true;this.dirtyDeform=true;}
+  set(k,v){if(this.params[k]===v)return false;this.params[k]=v;if(TOPO.has(k))this.dirtyTopo=true;this.dirtyDeform=true;return true;}
+  setMany(o){for(const k in o)this.set(k,o[k]);}
+  ensure(){if(this.dirtyTopo)this.buildTopology();if(this.dirtyDeform)this.deform();}
+
+  buildTopology(){
+    const p=this.params,N=Math.max(3,Math.round(p.count));
+    const rng=rngFrom(this.seedStr),gauss=gaussFrom(rng);
+    this.noise=makeNoise(rngFrom(this.seedStr+':noise'));
+    const s0=1.905/Math.sqrt(N);this.s0=s0;
+    const seeds=[],golden=Math.PI*(3-Math.sqrt(5)),Rin=1-0.5*s0;
+    for(let i=0;i<N;i++){const r=Math.sqrt((i+0.5)/N)*Rin,a=i*golden+0.7;seeds.push({x:r*Math.cos(a),y:r*Math.sin(a)});}
+    const I=p.irregularity,nc=3+Math.floor(rng()*4),clusters=[];
+    for(let c=0;c<nc;c++){const r=Math.sqrt(rng())*0.8,a=rng()*Math.PI*2;clusters.push({x:r*Math.cos(a),y:r*Math.sin(a)});}
+    const jit=I*0.95*s0;
+    for(const s of seeds){
+      s.x+=gauss()*jit;s.y+=gauss()*jit;
+      if(I>0.45){const w=(I-0.45)/0.55,c=clusters[Math.floor(rng()*nc)],pull=w*0.45*rng();s.x+=(c.x-s.x)*pull;s.y+=(c.y-s.y)*pull;}
+      const r=Math.hypot(s.x,s.y);if(r>Rin){s.x*=Rin/r;s.y*=Rin/r;}
+    }
+    const strength=seeds.map(()=>clamp(gauss()*0.8,-1,1));
+    const vor=voronoiDisk(seeds,s0*1.05);
+    const cells=[];
+    for(let i=0;i<N;i++){
+      const {poly,ids}=vor[i];if(poly.length<3)continue;
+      const verts=[],eids=[],nb=new Set();
+      for(let k=0,n=poly.length;k<n;k++){
+        const a=poly[k],b=poly[(k+1)%n],id=ids[k];if(id>=0)nb.add(id);
+        const len=Math.hypot(b.x-a.x,b.y-a.y),segs=clamp(Math.round(len/(0.3*s0)),1,6);
+        for(let t=0;t<segs;t++){const f=t/segs;verts.push({x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f});eids.push(id);}
+      }
+      cells.push({id:i,seed:seeds[i],strength:strength[i],verts,eids,nbrs:[...nb],area0:polyArea(poly),d:null,dseed:null,merged:new Set()});
+    }
+    this.cells=cells;this.seeds=seeds;this.strength=strength;
+    /* grid for competition lookups */
+    const g=s0;this.cg=g;const grid=new Map();const ci=v=>Math.floor((v+1.1)/g);
+    for(let i=0;i<N;i++){const k=ci(seeds[i].x)*4096+ci(seeds[i].y);let a=grid.get(k);if(!a){a=[];grid.set(k,a);}a.push(i);}
+    this.cgrid=grid;this.compCached=false;this.dirtyTopo=false;this.dirtyDeform=true;
+  }
+
+  growthParams(){const p=this.params,ratio=p.radialGrowth/p.circGrowth,pw=clamp(1+p.anisotropy*(ratio-1),0.4,2.8);return {pw,k:(pw-1)/(4-pw),Gt:p.circGrowth};}
+  growthMap(){const {k,Gt}=this.growthParams();return (x,y)=>{const r=Math.hypot(x,y);if(r<1e-9)return [x,y];const f=Gt*(1+k*r*r*r)/(1+k);return [x*f,y*f];};}
+  competitionField(){
+    const s0=this.s0,g=this.cg,grid=this.cgrid,seeds=this.seeds,str=this.strength,sig=1.25*s0,amp=0.4*s0;
+    return (x,y)=>{const ix=Math.floor((x+1.1)/g),iy=Math.floor((y+1.1)/g);let dx=0,dy=0,ws=0.6;
+      for(let a=-2;a<=2;a++)for(let b=-2;b<=2;b++){const arr=grid.get((ix+a)*4096+(iy+b));if(!arr)continue;
+        for(const j of arr){const q=seeds[j],ex=x-q.x,ey=y-q.y,d2=ex*ex+ey*ey;if(d2<1e-12)continue;const d=Math.sqrt(d2),w=Math.exp(-d2/(2*sig*sig));ws+=w;dx+=str[j]*w*ex/d;dy+=str[j]*w*ey/d;}}
+      return [amp*dx/ws,amp*dy/ws];};
+  }
+  deform(){
+    const p=this.params,s0=this.s0,grow=this.growthMap(),{Gt}=this.growthParams(),C=p.competition;
+    if(!this.compCached){const comp=this.competitionField();for(const c of this.cells){c.cd=c.verts.map(v=>comp(v.x,v.y));c.sd=comp(c.seed.x,c.seed.y);}this.compCached=true;}
+    const nz=p.boundaryNoise,amp=nz*0.24*s0*Gt,freq=1/(s0*Gt*1.8),noise=this.noise;
+    const map=(x,y,cd)=>{if(C>0&&cd){x+=C*cd[0];y+=C*cd[1];}let [gx,gy]=grow(x,y);
+      if(amp>0){const u=gx*freq,v=gy*freq;const nx=noise(u,v)+0.5*noise(u*2.1+7.3,v*2.1+3.1),ny=noise(u+53.7,v+11.3)+0.5*noise(u*2.1+91.2,v*2.1+47.9);gx+=amp*nx;gy+=amp*ny;}
+      return {x:gx,y:gy};};
+    this.map=map;
+    let eMin=1e9,eMax=-1e9,aMin=1e9,aMax=-1e9,nMin=99,nMax=0;
+    for(const c of this.cells){
+      c.d=c.verts.map((v,i)=>map(v.x,v.y,c.cd[i]));c.dseed=map(c.seed.x,c.seed.y,c.sd);
+      const d=c.d,n=d.length;let cx=0,cy=0;for(const v of d){cx+=v.x;cy+=v.y;}cx/=n;cy/=n;c.cx=cx;c.cy=cy;
+      let sxx=0,syy=0,sxy=0;for(const v of d){const ex=v.x-cx,ey=v.y-cy;sxx+=ex*ex;syy+=ey*ey;sxy+=ex*ey;}
+      sxx/=n;syy/=n;sxy/=n;const tr=sxx+syy,det=sxx*syy-sxy*sxy,disc=Math.sqrt(Math.max(0,tr*tr/4-det));
+      const l1=tr/2+disc,l2=Math.max(1e-12,tr/2-disc);c.elong=Math.sqrt(l1/l2);c.axis=0.5*Math.atan2(2*sxy,sxx-syy);
+      c.area=polyArea(d);c.dist=Math.hypot(c.seed.x,c.seed.y);
+      if(c.elong<eMin)eMin=c.elong;if(c.elong>eMax)eMax=c.elong;if(c.area<aMin)aMin=c.area;if(c.area>aMax)aMax=c.area;
+      const nb=c.nbrs.length;if(nb<nMin)nMin=nb;if(nb>nMax)nMax=nb;
+      c.merged.clear();
+    }
+    this.range={elong:[eMin,eMax],area:[aMin,aMax],dist:[0,1],nb:[nMin,nMax]};
+    /* merging: drop walls that cut across the radial direction */
+    const M=p.merge,byId=this.byId=new Map(this.cells.map(c=>[c.id,c]));
+    if(M>0)for(const c of this.cells)for(const j of c.nbrs){if(j<=c.id)continue;const o=byId.get(j);if(!o)continue;
+      const vx=o.dseed.x-c.dseed.x,vy=o.dseed.y-c.dseed.y,L=Math.hypot(vx,vy)||1,mx=(o.dseed.x+c.dseed.x)/2,my=(o.dseed.y+c.dseed.y)/2,R=Math.hypot(mx,my)||1;
+      const align=Math.abs((vx*mx+vy*my)/(L*R));const score=M*(0.12+0.88*align*align*align);
+      if(hash2(c.id,j)<score*0.92){c.merged.add(j);o.merged.add(c.id);}}
+    this.dirtyDeform=false;
+  }
+  hit(x,y){let best=null,bd=1e9;for(const c of this.cells){const d=(c.dseed.x-x)**2+(c.dseed.y-y)**2;if(d<bd){bd=d;best=c;}}
+    if(best&&pointInPoly(best.d,x,y))return best;for(const c of this.cells)if(pointInPoly(c.d,x,y))return c;return best;}
+}
+
+/* ---------- colour helpers ---------- */
+function hex(c){return [parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)];}
+function mix(a,b,t){const A=hex(a),B=hex(b);return `rgb(${Math.round(A[0]+(B[0]-A[0])*t)},${Math.round(A[1]+(B[1]-A[1])*t)},${Math.round(A[2]+(B[2]-A[2])*t)})`;}
+function mixRGB(a,b,t){return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];}
+function rgbStr(c,l){l=l||0;return `rgb(${Math.round(clamp(c[0]+l,0,255))},${Math.round(clamp(c[1]+l,0,255))},${Math.round(clamp(c[2]+l,0,255))})`;}
+const BIO=[{wall:'#eadca4',pore:'#c6ab62',deep:'#a68c45',rim:'#d9c88a'},{wall:'#d8b857',pore:'#a1862c',deep:'#78631e',rim:'#c3a240'},{wall:'#b19247',pore:'#625622',deep:'#423a15',rim:'#9a7f3a'}];
+function bioPalette(m){const i=m<0.5?0:1,t=m<0.5?m*2:(m-0.5)*2,o={};for(const k in BIO[0])o[k]=mixRGB(hex(BIO[i][k]),hex(BIO[i+1][k]),t);return o;}
+const SCI=['#f1ede0','#c9d3ae','#7fa58c','#3c6f7c','#1f3b4f'].map(hex);
+function sciColor(t){t=clamp(t,0,1)*(SCI.length-1);const i=Math.min(SCI.length-2,Math.floor(t));return mixRGB(SCI[i],SCI[i+1],t-i);}
+function cssVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+
+/* ---------- rendering ---------- */
+function fitCanvas(cv){const dpr=Math.min(2,window.devicePixelRatio||1);const w=cv.clientWidth||300,h=cv.clientHeight||w;if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}return {ctx:cv.getContext('2d'),w:cv.width,h:cv.height,dpr};}
+function arrow(ctx,x1,y1,x2,y2,hs){ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();const a=Math.atan2(y2-y1,x2-x1);ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-hs*Math.cos(a-0.5),y2-hs*Math.sin(a-0.5));ctx.moveTo(x2,y2);ctx.lineTo(x2-hs*Math.cos(a+0.5),y2-hs*Math.sin(a+0.5));ctx.stroke();}
+
+function renderModel(model,cv,o){
+  o=o||{};model.ensure();
+  const {ctx,w,h,dpr}=fitCanvas(cv);const p=model.params,{Gt,pw,k}=model.growthParams();
+  const Rv=Math.min(w,h)/2*(o.pad||0.94),scale=Rv/Math.max(Gt,o.fitMax||1.8),cx=w/2,cy=h/2,s0=model.s0;
+  const X=x=>cx+x*scale,Y=y=>cy+y*scale;
+  const ink=cssVar('--ink'),ink2=cssVar('--ink2'),paper=cssVar('--paper'),panel=cssVar('--panel'),accent=cssVar('--accent2'),line=cssVar('--line');
+  const mode=o.colorMode||'bio';const bio=bioPalette(p.maturity);
+  ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,w,h);
+  if(o.background!==false){ctx.fillStyle=o.bg||paper;ctx.fillRect(0,0,w,h);}
+  const capR=Gt*scale;
+  /* cap disc */
+  let wallCol,poreFn,deepCol;
+  if(mode==='bio'){wallCol=rgbStr(bio.wall);deepCol=rgbStr(bio.deep);poreFn=c=>rgbStr(bio.pore,(hash2(c.id,991)-0.5)*14);}
+  else if(mode==='mono'){wallCol=ink;deepCol=null;poreFn=()=>panel;}
+  else{wallCol=paper;deepCol=null;const key=o.metric||'elong',[lo,hi]=model.range[key];const val=c=>key==='elong'?c.elong:key==='area'?c.area:key==='dist'?c.dist:c.nbrs.length;poreFn=c=>rgbStr(sciColor(hi>lo?(val(c)-lo)/(hi-lo):0.5));}
+  if(o.showCells!==false){
+    ctx.beginPath();ctx.arc(cx,cy,capR,0,Math.PI*2);ctx.fillStyle=mode==='mono'?panel:wallCol;ctx.fill();
+    if(mode==='bio'){ctx.strokeStyle=rgbStr(bio.rim);ctx.lineWidth=2*dpr;ctx.stroke();}
+    const wallPx=Math.max(0.6*dpr,p.wall*s0*Gt*scale*(mode==='bio'?0.62:0.34));
+    /* pores */
+    for(const c of model.cells){const d=c.d;ctx.beginPath();ctx.moveTo(X(d[0].x),Y(d[0].y));for(let i=1;i<d.length;i++)ctx.lineTo(X(d[i].x),Y(d[i].y));ctx.closePath();ctx.fillStyle=poreFn(c);ctx.fill();}
+    if(deepCol&&o.depth!==false){ctx.fillStyle=deepCol;ctx.globalAlpha=0.3;for(const c of model.cells){const d=c.d;ctx.beginPath();for(let i=0;i<d.length;i++){const x=c.cx+(d[i].x-c.cx)*0.64,y=c.cy+(d[i].y-c.cy)*0.64;if(i)ctx.lineTo(X(x),Y(y));else ctx.moveTo(X(x),Y(y));}ctx.closePath();ctx.fill();}ctx.globalAlpha=1;}
+    /* walls */
+    if(o.walls!==false){ctx.beginPath();for(const c of model.cells){const d=c.d,e=c.eids,n=d.length;for(let i=0;i<n;i++){const id=e[i];if(id>=0&&(id<c.id||c.merged.has(id)))continue;const a=d[i],b=d[(i+1)%n];ctx.moveTo(X(a.x),Y(a.y));ctx.lineTo(X(b.x),Y(b.y));}}
+      ctx.strokeStyle=mode==='mono'?ink:wallCol;ctx.lineWidth=wallPx;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();
+      ctx.beginPath();ctx.arc(cx,cy,capR,0,Math.PI*2);ctx.strokeStyle=mode==='mono'?ink:(mode==='bio'?rgbStr(bio.rim):ink2);ctx.lineWidth=mode==='bio'?Math.max(wallPx,3*dpr):1.2*dpr;ctx.stroke();}
+    if(mode==='bio'&&o.vignette!==false){const gr=ctx.createRadialGradient(cx,cy,capR*0.55,cx,cy,capR);gr.addColorStop(0,'rgba(60,40,10,0)');gr.addColorStop(1,'rgba(60,40,10,0.18)');ctx.beginPath();ctx.arc(cx,cy,capR,0,Math.PI*2);ctx.fillStyle=gr;ctx.fill();}
+  } else {ctx.beginPath();ctx.arc(cx,cy,capR,0,Math.PI*2);ctx.strokeStyle=ink2;ctx.lineWidth=1.2*dpr;ctx.stroke();}
+  /* overlays */
+  ctx.lineCap='butt';ctx.lineJoin='miter';
+  if(o.bounds){ctx.beginPath();for(const c of model.cells){const d=c.d,e=c.eids,n=d.length;for(let i=0;i<n;i++){const id=e[i];if(id>=0&&id<c.id)continue;ctx.moveTo(X(d[i].x),Y(d[i].y));ctx.lineTo(X(d[(i+1)%n].x),Y(d[(i+1)%n].y));}}ctx.strokeStyle=mode==='bio'?'rgba(40,25,5,.55)':accent;ctx.lineWidth=0.8*dpr;ctx.stroke();}
+  if(o.axes){ctx.strokeStyle=mode==='bio'?'rgba(40,25,5,.5)':ink2;ctx.lineWidth=0.8*dpr;ctx.setLineDash([3*dpr,4*dpr]);ctx.beginPath();for(let i=0;i<12;i++){const a=i*Math.PI/6;ctx.moveTo(cx,cy);ctx.lineTo(cx+capR*Math.cos(a),cy+capR*Math.sin(a));}ctx.stroke();ctx.setLineDash([]);
+    const grow=model.growthMap();for(const r0 of [0.25,0.5,0.75]){const [gx]=grow(r0,0);ctx.beginPath();ctx.arc(cx,cy,gx*scale,0,Math.PI*2);ctx.stroke();}}
+  if(o.nbrs){ctx.strokeStyle=mode==='bio'?'rgba(255,255,255,.75)':(mode==='mono'?accent:ink);ctx.lineWidth=0.7*dpr;ctx.beginPath();for(const c of model.cells)for(const j of c.nbrs){if(j<c.id)continue;const o2=model.byId.get(j);if(!o2)continue;ctx.moveTo(X(c.dseed.x),Y(c.dseed.y));ctx.lineTo(X(o2.dseed.x),Y(o2.dseed.y));}ctx.stroke();}
+  if(o.vectors){const grow=model.growthMap(),h0=0.004,L=Math.max(8,0.5*s0*Gt*scale);ctx.lineWidth=1.1*dpr;
+    for(const [r0,n] of [[0.18,6],[0.42,12],[0.66,18],[0.88,24]])for(let i=0;i<n;i++){const a=i*2*Math.PI/n+r0,ur=[Math.cos(a),Math.sin(a)],ut=[-ur[1],ur[0]],x=r0*ur[0],y=r0*ur[1];
+      const c0=grow(x,y),pr=grow(x+h0*ur[0],y+h0*ur[1]),mr=grow(x-h0*ur[0],y-h0*ur[1]),pt=grow(x+h0*ut[0],y+h0*ut[1]),mt=grow(x-h0*ut[0],y-h0*ut[1]);
+      const sr=Math.hypot(pr[0]-mr[0],pr[1]-mr[1])/(2*h0)/Gt,st=Math.hypot(pt[0]-mt[0],pt[1]-mt[1])/(2*h0)/Gt;const px=X(c0[0]),py=Y(c0[1]);
+      ctx.strokeStyle=accent;const lr=L*sr*0.6;arrow(ctx,px-ur[0]*lr,py-ur[1]*lr,px+ur[0]*lr,py+ur[1]*lr,sr>=st?4*dpr:0);
+      ctx.strokeStyle=mode==='bio'?'rgba(255,255,255,.85)':ink;const lt=L*st*0.6;arrow(ctx,px-ut[0]*lt,py-ut[1]*lt,px+ut[0]*lt,py+ut[1]*lt,st>sr?4*dpr:0);}}
+  if(o.seeds){ctx.fillStyle=mode==='bio'?'#fff8e1':(mode==='mono'?ink:'#fff');const r=Math.max(1.4*dpr,Math.min(3*dpr,0.08*s0*Gt*scale));for(const c of model.cells){ctx.beginPath();ctx.arc(X(c.dseed.x),Y(c.dseed.y),r,0,Math.PI*2);ctx.fill();}
+    if(mode==='bio'){ctx.strokeStyle='rgba(40,25,5,.6)';ctx.lineWidth=0.6*dpr;for(const c of model.cells){ctx.beginPath();ctx.arc(X(c.dseed.x),Y(c.dseed.y),r,0,Math.PI*2);ctx.stroke();}}}
+  if(o.highlight){const c=o.highlight;ctx.fillStyle='rgba(47,90,168,.28)';for(const j of c.nbrs){const o2=model.byId.get(j);if(!o2)continue;const d=o2.d;ctx.beginPath();ctx.moveTo(X(d[0].x),Y(d[0].y));for(let i=1;i<d.length;i++)ctx.lineTo(X(d[i].x),Y(d[i].y));ctx.closePath();ctx.fill();}
+    const d=c.d;ctx.beginPath();ctx.moveTo(X(d[0].x),Y(d[0].y));for(let i=1;i<d.length;i++)ctx.lineTo(X(d[i].x),Y(d[i].y));ctx.closePath();ctx.fillStyle='rgba(47,90,168,.5)';ctx.fill();ctx.strokeStyle='#2f5aa8';ctx.lineWidth=2*dpr;ctx.stroke();
+    ctx.strokeStyle='#fff';ctx.lineWidth=1.5*dpr;const L=Math.sqrt(c.area)*0.9*scale;arrow(ctx,X(c.cx)-Math.cos(c.axis)*L,Y(c.cy)-Math.sin(c.axis)*L,X(c.cx)+Math.cos(c.axis)*L,Y(c.cy)+Math.sin(c.axis)*L,5*dpr);
+    ctx.fillStyle='#2f5aa8';ctx.beginPath();ctx.arc(X(c.dseed.x),Y(c.dseed.y),3*dpr,0,Math.PI*2);ctx.fill();}
+  return {toModel:(px,py)=>[(px*dpr-cx)/scale,(py*dpr-cy)/scale],Gt,pw};
+}
+</script>
+<script>
+/* ========================================================================
+   SIMULATOR UI
+   ======================================================================== */
+const $=s=>document.querySelector(s);
+const SLIDERS=[
+ {k:'count',l:'Pore count',min:50,max:1000,step:10,f:v=>Math.round(v),h:'How many seed points are placed. Each seed becomes one pore. Changing this rebuilds the cell structure.'},
+ {k:'irregularity',l:'Irregularity',min:0,max:1,step:0.01,h:'Low: seeds evenly spread. High: seeds jittered and pulled into loose clusters, so cells vary in size. Rebuilds the cell structure.'},
+ {k:'radialGrowth',l:'Radial growth  Gᵣ',min:1,max:3,step:0.01,h:'How much a line pointing outward from the centre lengthens at the cap margin. Compared with Gθ it sets how stretched the pores become.'},
+ {k:'circGrowth',l:'Circumferential growth  Gθ',min:1,max:2.6,step:0.01,h:'How much the cap grows around its circumference. The cap radius grows by this factor.'},
+ {k:'anisotropy',l:'Anisotropy',min:0,max:1,step:0.01,h:'How much of the difference between Gᵣ and Gθ is expressed as pore shape. At 0 growth is isotropic whatever the two factors say (as if new pores absorbed the difference).'},
+ {k:'boundaryNoise',l:'Boundary noise',min:0,max:1,step:0.01,h:'Smooth random wobble applied to every point on the pore walls. Shared walls stay shared.'},
+ {k:'competition',l:'Cell competition',min:0,max:1,step:0.01,h:'Each pore is given a random strength. Strong pores push the walls outward into their weaker neighbours.'},
+ {k:'merge',l:'Merging / labyrinth',min:0,max:1,step:0.01,h:'Probability that a wall between two radially adjacent pores disappears, joining them into an elongated channel.'},
+ {k:'wall',l:'Pore wall thickness',min:0.05,max:1,step:0.01,h:'Thickness of the tissue between pores. Purely visual: the cells underneath do not change.'},
+];
+const PRESETS={
+ 'Young / round':{count:360,irregularity:0.16,radialGrowth:1.06,circGrowth:1.05,anisotropy:0.5,boundaryNoise:0.1,competition:0.12,merge:0,wall:0.6,maturity:0.02},
+ 'Polygonal':{count:300,irregularity:0.3,radialGrowth:1.5,circGrowth:1.5,anisotropy:0.5,boundaryNoise:0.08,competition:0.35,merge:0,wall:0.22,maturity:0.35},
+ 'Elongated':{count:420,irregularity:0.22,radialGrowth:2.7,circGrowth:1.4,anisotropy:1,boundaryNoise:0.3,competition:0.3,merge:0.12,wall:0.3,maturity:0.6},
+ 'Labyrinth':{count:520,irregularity:0.35,radialGrowth:2.85,circGrowth:1.3,anisotropy:1,boundaryNoise:0.55,competition:0.5,merge:0.75,wall:0.32,maturity:0.9},
+ 'Highly irregular':{count:280,irregularity:0.92,radialGrowth:1.8,circGrowth:1.5,anisotropy:0.6,boundaryNoise:0.85,competition:0.95,merge:0.22,wall:0.3,maturity:0.6},
+};
+function maturityMap(m){return {radialGrowth:+(1+1.9*m).toFixed(2),circGrowth:+(1+1.0*m).toFixed(2),boundaryNoise:+(0.12+0.55*m).toFixed(2),merge:+clamp((m-0.45)*1.5,0,1).toFixed(2),wall:+(0.52-0.3*m).toFixed(2),competition:+(0.2+0.45*m).toFixed(2)};}
+
+const DEFAULT_SEED='BOL-7K3PFA';
+const model=new PoreModel(DEFAULT_SEED,{});
+const cap=$('#cap');const ov={seeds:false,bounds:false,vectors:false,axes:false,nbrs:false};
+let colorMode='bio',metric='elong',highlight=null,dirty=true,playing=false,playStart=0,playFrom=0;
+const inputs={};
+
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),1600);}
+function buildSliders(){
+  const host=$('#sliders');
+  for(const s of SLIDERS){const d=document.createElement('div');d.className='ctl';
+    d.innerHTML=`<div class="lab"><b>${s.l}</b><output></output></div><input type="range" min="${s.min}" max="${s.max}" step="${s.step}" aria-label="${s.l}"><div class="help">${s.h}</div>`;
+    const inp=d.querySelector('input'),out=d.querySelector('output');inp.value=model.params[s.k];out.textContent=(s.f||(v=>(+v).toFixed(2)))(inp.value);
+    inp.addEventListener('input',()=>{const v=+inp.value;out.textContent=(s.f||(v=>(+v).toFixed(2)))(v);model.set(s.k,v);if(TOPO.has(s.k))highlight=null;stopPlay();dirty=true;});
+    inputs[s.k]={inp,out,fmt:s.f||(v=>(+v).toFixed(2))};host.appendChild(d);}
+  const pb=$('#presets');for(const name in PRESETS){const b=document.createElement('button');b.className='btn';b.textContent=name;b.addEventListener('click',()=>{applyParams(PRESETS[name]);stopPlay();highlight=null;dirty=true;});pb.appendChild(b);}
+}
+function syncUI(){for(const k in inputs){inputs[k].inp.value=model.params[k];inputs[k].out.textContent=inputs[k].fmt(model.params[k]);}$('#maturity').value=model.params.maturity;$('#seedlabel').textContent=model.seedStr;}
+function applyParams(o){model.setMany(o);syncUI();}
+function setMaturity(m,fromUser){model.set('maturity',m);model.setMany(maturityMap(m));syncUI();dirty=true;}
+$('#maturity').addEventListener('input',e=>{stopPlay();setMaturity(+e.target.value);});
+
+function stopPlay(){if(!playing)return;playing=false;$('#play').textContent='Play growth';$('#pause').disabled=true;}
+$('#play').addEventListener('click',()=>{if(playing)return;playFrom=model.params.maturity>=0.995?0:model.params.maturity;playing=true;playStart=performance.now();$('#play').textContent='Playing…';$('#pause').disabled=false;highlight=null;});
+$('#pause').addEventListener('click',stopPlay);
+$('#reset').addEventListener('click',()=>{stopPlay();model.setSeed(DEFAULT_SEED);applyParams(Object.assign({},DEFAULTS));highlight=null;dirty=true;});
+$('#randomize').addEventListener('click',()=>{stopPlay();model.setSeed(newSeedString());syncUI();highlight=null;dirty=true;});
+$('#newseed').addEventListener('click',()=>{stopPlay();model.setSeed(newSeedString());syncUI();highlight=null;dirty=true;});
+$('#copyseed').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(model.seedStr);toast('Seed copied: '+model.seedStr);}catch(e){toast('Seed: '+model.seedStr);}});
+for(const b of document.querySelectorAll('#colormodes .btn'))b.addEventListener('click',()=>{for(const x of document.querySelectorAll('#colormodes .btn'))x.classList.remove('on');b.classList.add('on');colorMode=b.dataset.cm;$('#metricwrap').style.display=colorMode==='math'?'block':'none';dirty=true;});
+$('#metric').addEventListener('change',e=>{metric=e.target.value;dirty=true;});
+for(const k in ov)$('#ov-'+k).addEventListener('change',e=>{ov[k]=e.target.checked;dirty=true;});
+
+cap.addEventListener('pointerdown',e=>{const r=cap.getBoundingClientRect();const px=e.clientX-r.left,py=e.clientY-r.top;if(!lastRender)return;const [mx,my]=lastRender.toModel(px,py);
+  if(Math.hypot(mx,my)>lastRender.Gt*1.02){highlight=null;dirty=true;return;}const c=model.hit(mx,my);highlight=(highlight===c)?null:c;dirty=true;});
+window.addEventListener('resize',()=>{dirty=true;});
+if(window.matchMedia)window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{dirty=true;redrawMath();});
+
+let lastRender=null;
+function describeDir(c){const ur=Math.atan2(c.seed.y,c.seed.x);let d=Math.abs(((c.axis-ur)%Math.PI+Math.PI)%Math.PI);if(d>Math.PI/2)d=Math.PI-d;const deg=d*180/Math.PI;return (deg<30?'radial':deg>60?'circumferential':'oblique')+` (${deg.toFixed(0)}° off radial)`;}
+function updateInspect(){const el=$('#inspect');if(!highlight){el.innerHTML='<p class="empty">Click any pore on the cap. Its neighbours light up and its geometry is listed here: where its seed is, how much it has grown, and which way it stretched.</p>';return;}
+  const c=highlight,u=1e4,a0=c.area0*u,a1=c.area*u;
+  el.innerHTML=`<div class="stat">Pore ${c.id}<small>${c.nbrs.length} neighbours</small></div><dl>
+  <dt>Seed position (x, y)</dt><dd>(${(c.seed.x*100).toFixed(1)}, ${(c.seed.y*100).toFixed(1)})</dd>
+  <dt>Distance from centre</dt><dd>${(c.dist*100).toFixed(1)} % of young radius</dd>
+  <dt>Original area</dt><dd>${a0.toFixed(1)}</dd>
+  <dt>Current area</dt><dd>${a1.toFixed(1)} <span style="color:var(--ink3)">(×${(a1/a0).toFixed(2)})</span></dd>
+  <dt>Elongation ratio</dt><dd>${c.elong.toFixed(2)} : 1</dd>
+  <dt>Neighbouring pores</dt><dd>${c.nbrs.length}${c.merged.size?` (${c.merged.size} merged)`:''}</dd>
+  <dt>Growth direction</dt><dd>${describeDir(c)}</dd></dl>
+  <p class="note" style="margin:10px 0 0">Areas in units of 1/10 000 of the young cap’s disc. Positions as a percentage of the young cap radius.</p>`;}
+function updateGlance(){const {Gt,pw}=model.growthParams();const p=model.params;$('#glance').innerHTML=`Cap radius ×${Gt.toFixed(2)} &nbsp;·&nbsp; margin stretch ratio Gᵣ/Gθ expressed as ${pw.toFixed(2)}<br>${model.cells.length} pores, ${model.cells.reduce((a,c)=>a+c.merged.size,0)/2|0} walls merged<br>mean elongation ${(model.cells.reduce((a,c)=>a+c.elong,0)/model.cells.length).toFixed(2)} : 1`;}
+function updateLegend(){const L=$('#legend');if(colorMode!=='math'){L.classList.remove('on');return;}L.classList.add('on');const [lo,hi]=model.range[metric];const f=metric==='area'?v=>(v*1e4).toFixed(0):metric==='nb'?v=>v:v=>v.toFixed(2);$('#legmin').textContent=f(lo);$('#legmax').textContent=f(hi);$('#legbar').style.background=`linear-gradient(90deg,${SCI.map((c,i)=>rgbStr(c)+' '+(i*25)+'%').join(',')})`;}
+function frame(now){
+  if(playing){const T=7000;let t=(now-playStart)/T;const m=playFrom+(1-playFrom)*(t>=1?1:1-Math.pow(1-t,2));setMaturity(Math.min(1,m));if(t>=1)stopPlay();}
+  if(dirty&&$('#view-sim').classList.contains('active')){dirty=false;lastRender=renderModel(model,cap,{colorMode,metric,seeds:ov.seeds,bounds:ov.bounds,vectors:ov.vectors,axes:ov.axes,nbrs:ov.nbrs,highlight});updateInspect();updateGlance();updateLegend();}
+  requestAnimationFrame(frame);
+}
+buildSliders();syncUI();requestAnimationFrame(frame);
+
+/* ---------- tabs ---------- */
+for(const b of document.querySelectorAll('.tabs button'))b.addEventListener('click',()=>{for(const x of document.querySelectorAll('.tabs button'))x.setAttribute('aria-selected',x===b);for(const v of document.querySelectorAll('.view'))v.classList.toggle('active',v.id==='view-'+b.dataset.tab);window.scrollTo(0,0);if(b.dataset.tab==='math')redrawMath();else dirty=true;});
+
+/* ========================================================================
+   THE MATH: glossary + popovers
+   ======================================================================== */
+const GLOSS=[
+ {g:'x',s:'x',name:'x',say:'“ex”',mean:'The horizontal coordinate: how far to the right a point is.',model:'The horizontal position of each seed point and of every location on the cap.',ex:'x = 3 means three units to the right of the starting line.'},
+ {g:'y',s:'y',name:'y',say:'“why”',mean:'The vertical coordinate: how far up a point is.',model:'The vertical position of seeds and locations.',ex:'(x, y) = (3, 2): three across, two up.'},
+ {g:'r',s:'r',name:'r (radius)',say:'“arr”',mean:'Distance from a centre point.',model:'How far a point is from the centre of the cap. Growth multiplies r.',ex:'A point at r = 10 is ten units from the centre, in whatever direction.'},
+ {g:'theta',s:'θ',name:'Theta',say:'“THAY-tuh”',mean:'An angle.',model:'It tells us which direction around the mushroom centre a point lies.',ex:'θ = 90° means straight up from the centre; θ = 180° straight left.'},
+ {g:'i',s:'i',name:'i (index)',say:'“eye”',mean:'A counting label that says which item in a list we mean.',model:'Pᵢ is “seed number i”: P₁, P₂, P₃ …',ex:'If i = 7, Pᵢ is the seventh seed.'},
+ {g:'P',s:'P',name:'P (point)',say:'“pee”',mean:'A point: a single location.',model:'Each seed, the centre of a future pore, is a point Pᵢ.',ex:'P₁ = (2, 5) is a point two across and five up.'},
+ {g:'d',s:'d',name:'d (distance)',say:'“dee”',mean:'The straight-line distance between two points.',model:'Used to decide which seed is nearest to each location, which decides the cells.',ex:'Points (0, 0) and (3, 4) are d = 5 apart.'},
+ {g:'G',s:'G',name:'G (growth factor)',say:'“jee”',mean:'A number that something is multiplied by when it grows.',model:'Lengths in the cap are multiplied by G. G = 1 is no growth; G = 2 doubles.',ex:'A 10 mm tube with G = 1.5 becomes 15 mm.'},
+ {g:'Gr',s:'Gᵣ',name:'G sub r — radial growth factor',say:'“jee arr”',mean:'The growth factor in the radial direction (outward from the centre).',model:'How much the cap lengthens along a spoke from centre to rim.',ex:'Gᵣ = 2: a pore twice as long in the outward direction.'},
+ {g:'Gt',s:'Gθ',name:'G sub theta — circumferential growth factor',say:'“jee THAY-tuh”',mean:'The growth factor around the circumference.',model:'How much the cap grows around its rim; the cap radius scales by this.',ex:'Gθ = 1.2 with Gᵣ = 2.4: pores stretch outward twice as much as sideways.'},
+ {g:'eps',s:'ε',name:'Epsilon',say:'“EP-sih-lon”',mean:'A small amount: a wobble, an error, a noise term.',model:'The local random variation added to growth. G_local = G_base + ε.',ex:'ε = 0.05 nudges growth from 1.50 to 1.55 at one spot and to 1.45 at another.'},
+ {g:'nabla',s:'∇',name:'Nabla (gradient)',say:'“NAB-luh”, and ∇G is read “grad G”',mean:'An arrow at every point showing the direction in which a quantity increases fastest, and how steeply.',model:'∇G would point toward the fastest-growing region of the cap (advanced section only).',ex:'On a hillside, ∇(height) points straight uphill.'},
+ {g:'lap',s:'∇²',name:'Laplacian',say:'“del squared” or “nabla squared”',mean:'How different a point is from the average of its surroundings. Negative on a hump, positive in a hollow.',model:'Appears in the reaction–diffusion equation to say how material spreads toward or away from a spot.',ex:'A hot spot on a cold plate has a negative Laplacian: it is hotter than its neighbours, so heat flows out.'},
+ {g:'H',s:'H',name:'H (amount of material)',say:'“aitch”',mean:'The amount or density of fungal material at a location.',model:'The quantity whose change over time the reaction–diffusion equation describes.',ex:'H = 0.8 at one point and 0.2 at another: more tissue at the first.'},
+ {g:'t',s:'t',name:'t (time)',say:'“tee”',mean:'Time.',model:'The clock the growth animation runs on; also the t in ∂H/∂t.',ex:'t = 0 is the young cap; larger t is later.'},
+ {g:'D',s:'D',name:'D (diffusion strength)',say:'“dee”',mean:'How readily something spreads out to its surroundings.',model:'In the advanced equation, how fast material evens out between neighbouring spots.',ex:'Ink in water: high D, it spreads quickly. Ink in honey: low D.'},
+ {g:'eq',s:'=',name:'Equals',say:'“equals”',mean:'The two sides have the same value.',model:'r_new = r_old × Gᵣ: the new radius is the same number as the old radius times the factor.',ex:'10 × 1.5 = 15.'},
+ {g:'gt',s:'>',name:'Greater than',say:'“is greater than”',mean:'The left side is larger than the right.',model:'Gᵣ > Gθ: outward growth stronger than sideways growth, so pores elongate.',ex:'5 > 3. (The wide end of the symbol faces the bigger number.)'},
+ {g:'lt',s:'<',name:'Less than',say:'“is less than”',mean:'The left side is smaller than the right.',model:'Gᵣ < Gθ: sideways growth wins; pores flatten into rings.',ex:'3 < 5.'},
+ {g:'approx',s:'≈',name:'Approximately equal',say:'“is about equal to”',mean:'The two sides are roughly, not exactly, the same.',model:'Gᵣ ≈ Gθ: growth is nearly the same in all directions (isotropic).',ex:'π ≈ 3.14.'},
+ {g:'times',s:'×',name:'Multiplication',say:'“times”',mean:'Multiply.',model:'r_old × Gᵣ.',ex:'4 × 2.5 = 10.'},
+ {g:'sq',s:'²',name:'Squared',say:'“squared”',mean:'Multiply a number by itself.',model:'In the distance formula, each gap is squared before adding.',ex:'4² = 4 × 4 = 16.'},
+ {g:'sqrt',s:'√',name:'Square root',say:'“square root of”',mean:'The number which, multiplied by itself, gives what is under the sign. It undoes squaring.',model:'The last step of the distance formula.',ex:'√16 = 4, because 4 × 4 = 16.'},
+ {g:'partial',s:'∂',name:'Partial derivative sign',say:'“partial” (or “del”)',mean:'Rate of change of one thing with respect to one other thing, holding everything else still.',model:'∂H/∂t: how fast the material H changes as time passes at a fixed place.',ex:'If the temperature in a room rises 2° per hour, ∂T/∂t = 2 degrees per hour.'},
+];
+const GMAP=Object.fromEntries(GLOSS.map(e=>[e.g,e]));
+function renderGloss(q){q=(q||'').toLowerCase();const host=$('#glist');host.innerHTML='';
+  for(const e of GLOSS){if(q&&!(e.s+e.name+e.say+e.mean+e.model+e.ex).toLowerCase().includes(q))continue;
+    const d=document.createElement('div');d.className='gcard';d.innerHTML=`<div class="s">${e.s}<small>${e.name}</small></div><div class="f"><em>Say it</em><span>${e.say}</span><em>Meaning</em><span>${e.mean}</span><em>In this model</em><span>${e.model}</span><em>Example</em><span>${e.ex}</span></div>`;host.appendChild(d);}
+  if(!host.children.length)host.innerHTML='<p style="color:var(--ink3)">No symbol matches that. Try a shorter word.</p>';}
+$('#gsearch').addEventListener('input',e=>renderGloss(e.target.value));renderGloss('');
+const pop=$('#pop');
+document.addEventListener('click',e=>{const s=e.target.closest('.sym');if(!s){pop.classList.remove('on');return;}const g=GMAP[s.dataset.g];if(!g)return;
+  pop.innerHTML=`<b>${g.s} &nbsp;${g.name}</b><i>say ${g.say}</i>${g.mean}<br><span style="color:var(--ink2)">In this model: ${g.model}</span>`;pop.classList.add('on');
+  const r=s.getBoundingClientRect();let x=r.left+window.scrollX,y=r.bottom+window.scrollY+6;pop.style.left='0px';pop.style.top='0px';const pw=pop.offsetWidth;if(x+pw>window.innerWidth-10)x=window.innerWidth-pw-10;pop.style.left=x+'px';pop.style.top=y+'px';});
+
+/* ========================================================================
+   THE MATH: interactive figures
+   ======================================================================== */
+const figs=[];
+function mini(id,pts,draw,opts){const cv=$(id);if(!cv)return null;opts=opts||{};
+  const st={cv,pts,draw,drag:-1,sel:0,probe:null,extra:{}};
+  const toLocal=e=>{const r=cv.getBoundingClientRect();return [(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height];};
+  cv.addEventListener('pointerdown',e=>{const [u,v]=toLocal(e);const r=cv.getBoundingClientRect();let best=-1,bd=1e9;pts.forEach((p,i)=>{const d=Math.hypot((p.x-u)*r.width,(p.y-v)*r.height);if(d<bd){bd=d;best=i;}});
+    if(best>=0&&bd<18){st.drag=best;st.sel=best;cv.setPointerCapture(e.pointerId);}else if(opts.probe){st.probe={x:u,y:v};}st.redraw();e.preventDefault();});
+  cv.addEventListener('pointermove',e=>{if(st.drag<0)return;const [u,v]=toLocal(e);pts[st.drag].x=clamp(u,0.02,0.98);pts[st.drag].y=clamp(v,0.02,0.98);st.redraw();});
+  const up=()=>{st.drag=-1;};cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+  st.redraw=()=>{const {ctx,w,h,dpr}=fitCanvas(cv);ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,w,h);draw(ctx,w,h,dpr,st);};
+  figs.push(st);return st;}
+function redrawMath(){for(const f of figs)f.redraw();}
+function dot(ctx,x,y,r,fill,stroke,dpr){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1.2*dpr;ctx.stroke();}}
+function label(ctx,txt,x,y,dpr,col,align){ctx.font=`${12*dpr}px ${cssVar('--sans')}`;ctx.fillStyle=col||cssVar('--ink2');ctx.textAlign=align||'left';ctx.textBaseline='middle';ctx.fillText(txt,x,y);}
+function gridBg(ctx,w,h,dpr,n){ctx.strokeStyle=cssVar('--line2');ctx.lineWidth=1;ctx.beginPath();for(let i=1;i<n;i++){ctx.moveTo(w*i/n,0);ctx.lineTo(w*i/n,h);ctx.moveTo(0,h*i/n);ctx.lineTo(w,h*i/n);}ctx.stroke();}
+const SUB='₀₁₂₃₄₅₆₇₈₉';const sub=n=>String(n).split('').map(c=>SUB[+c]).join('');
+
+/* Step 1: seeds */
+(()=>{const pts=[{x:.18,y:.3},{x:.42,y:.62},{x:.62,y:.25},{x:.8,y:.7},{x:.3,y:.8},{x:.55,y:.5},{x:.88,y:.35}];
+  mini('#f-seeds',pts,(ctx,w,h,dpr,st)=>{gridBg(ctx,w,h,dpr,10);const ink=cssVar('--ink'),acc=cssVar('--accent2');
+    pts.forEach((p,i)=>{const X=p.x*w,Y=p.y*h,on=i===st.sel;if(on){ctx.setLineDash([4*dpr,4*dpr]);ctx.strokeStyle=acc;ctx.lineWidth=dpr;ctx.beginPath();ctx.moveTo(X,h);ctx.lineTo(X,Y);ctx.lineTo(0,Y);ctx.stroke();ctx.setLineDash([]);}
+      dot(ctx,X,Y,on?6*dpr:4.5*dpr,on?acc:ink,null,dpr);label(ctx,'P'+sub(i+1),X+9*dpr,Y-9*dpr,dpr,on?acc:cssVar('--ink2'));});
+    const p=pts[st.sel];$('#f-seeds-read').textContent=`P${sub(st.sel+1)} = (x${sub(st.sel+1)}, y${sub(st.sel+1)}) = (${(p.x*10).toFixed(1)}, ${((1-p.y)*10).toFixed(1)})`;});})();
+
+/* Step 2: Voronoi with probe */
+(()=>{const pts=[{x:.22,y:.3},{x:.6,y:.22},{x:.78,y:.62},{x:.4,y:.7},{x:.52,y:.46},{x:.15,y:.75}];let stage=0;
+  const st=mini('#f-vor',pts,(ctx,w,h,dpr,s)=>{const ink=cssVar('--ink'),acc=cssVar('--accent2'),ink2=cssVar('--ink2');
+    const box=[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}];const cells=voronoiSmall(pts,box);
+    if(stage>=1){cells.forEach((c,i)=>{if(c.poly.length<3)return;ctx.beginPath();c.poly.forEach((v,k)=>k?ctx.lineTo(v.x*w,v.y*h):ctx.moveTo(v.x*w,v.y*h));ctx.closePath();ctx.fillStyle=rgbStr(sciColor(0.15+0.7*i/pts.length));ctx.globalAlpha=stage===1?0.35:0.9;ctx.fill();ctx.globalAlpha=1;
+      if(stage===2){ctx.strokeStyle=cssVar('--panel');ctx.lineWidth=5*dpr;ctx.lineJoin='round';ctx.stroke();}else{ctx.strokeStyle=ink2;ctx.lineWidth=dpr;ctx.stroke();}});}
+    else gridBg(ctx,w,h,dpr,10);
+    if(s.probe){const P=s.probe;let bi=0,bd=1e9;pts.forEach((p,i)=>{const d=Math.hypot((p.x-P.x)*w,(p.y-P.y)*h);if(d<bd){bd=d;bi=i;}});
+      pts.forEach((p,i)=>{ctx.strokeStyle=i===bi?acc:ink2;ctx.lineWidth=(i===bi?2:0.8)*dpr;ctx.setLineDash(i===bi?[]:[3*dpr,3*dpr]);ctx.beginPath();ctx.moveTo(P.x*w,P.y*h);ctx.lineTo(p.x*w,p.y*h);ctx.stroke();});ctx.setLineDash([]);
+      dot(ctx,P.x*w,P.y*h,4*dpr,cssVar('--panel'),ink,dpr);label(ctx,`closest: P${sub(bi+1)}, d = ${(bd/dpr).toFixed(0)} px`,P.x*w+10*dpr,P.y*h+12*dpr,dpr,ink);}
+    pts.forEach((p,i)=>{dot(ctx,p.x*w,p.y*h,4.5*dpr,stage===2?'#fff':ink,stage===2?ink:null,dpr);label(ctx,'P'+sub(i+1),p.x*w+8*dpr,p.y*h-9*dpr,dpr,stage===2?'#fff':ink2);});},{probe:true});
+  for(const b of document.querySelectorAll('#f-vor-stages button'))b.addEventListener('click',()=>{for(const x of document.querySelectorAll('#f-vor-stages button'))x.classList.remove('on');b.classList.add('on');stage=+b.dataset.s;st.redraw();});})();
+
+/* Distance */
+(()=>{const pts=[{x:.22,y:.68},{x:.72,y:.28}];
+  mini('#f-dist',pts,(ctx,w,h,dpr)=>{gridBg(ctx,w,h,dpr,12);const ink=cssVar('--ink'),acc=cssVar('--accent2'),ink2=cssVar('--ink2');const a=pts[0],b=pts[1];const ax=a.x*w,ay=a.y*h,bx=b.x*w,by=b.y*h;
+    ctx.strokeStyle=ink2;ctx.lineWidth=dpr;ctx.setLineDash([4*dpr,4*dpr]);ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,ay);ctx.lineTo(bx,by);ctx.stroke();ctx.setLineDash([]);
+    ctx.strokeStyle=acc;ctx.lineWidth=2*dpr;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();
+    const dx=(b.x-a.x)*12,dy=(a.y-b.y)*12*(h/w),d=Math.hypot(dx,dy);
+    label(ctx,`x₂ − x₁ = ${dx.toFixed(1)}`,(ax+bx)/2,ay+(by<ay?14:-14)*dpr,dpr,ink2,'center');label(ctx,`y₂ − y₁ = ${dy.toFixed(1)}`,bx+(bx>ax?8:-8)*dpr,(ay+by)/2,dpr,ink2,bx>ax?'left':'right');
+    label(ctx,`d = ${d.toFixed(2)}`,(ax+bx)/2+(by<ay?-14:14)*dpr,(ay+by)/2,dpr,acc,by<ay?'right':'left');
+    dot(ctx,ax,ay,5*dpr,ink,null,dpr);dot(ctx,bx,by,5*dpr,ink,null,dpr);label(ctx,'(x₁, y₁)',ax-10*dpr,ay+14*dpr,dpr,ink,'left');label(ctx,'(x₂, y₂)',bx+10*dpr,by-12*dpr,dpr,ink,'left');
+    $('#f-dist-read').textContent=`d = √(${dx.toFixed(1)}² + ${dy.toFixed(1)}²) = √(${(dx*dx).toFixed(1)} + ${(dy*dy).toFixed(1)}) = √${(dx*dx+dy*dy).toFixed(1)} = ${d.toFixed(2)}`;});})();
+
+/* Step 3: polygon + bisectors */
+(()=>{const pts=[{x:.5,y:.5},{x:.22,y:.3},{x:.75,y:.25},{x:.8,y:.72},{x:.28,y:.78}];
+  const st=mini('#f-poly',pts,(ctx,w,h,dpr,s)=>{const ink=cssVar('--ink'),acc=cssVar('--accent2'),ink2=cssVar('--ink2'),focus=cssVar('--focus');
+    const box=[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}];const cells=voronoiSmall(pts,box);
+    cells.forEach((c,i)=>{if(c.poly.length<3)return;ctx.beginPath();c.poly.forEach((v,k)=>k?ctx.lineTo(v.x*w,v.y*h):ctx.moveTo(v.x*w,v.y*h));ctx.closePath();ctx.fillStyle=i===s.sel?'rgba(47,90,168,.22)':cssVar('--paper2');ctx.fill();ctx.strokeStyle=ink2;ctx.lineWidth=1.2*dpr;ctx.stroke();});
+    if($('#f-poly-bis').checked){const a=pts[s.sel];pts.forEach((b,j)=>{if(j===s.sel)return;const mx=(a.x+b.x)/2*w,my=(a.y+b.y)/2*h;const dx=(b.x-a.x)*w,dy=(b.y-a.y)*h;const L=Math.hypot(dx,dy)||1;const tx=-dy/L,ty=dx/L;
+      ctx.strokeStyle=acc;ctx.lineWidth=dpr;ctx.setLineDash([5*dpr,4*dpr]);ctx.beginPath();ctx.moveTo(mx-tx*2000,my-ty*2000);ctx.lineTo(mx+tx*2000,my+ty*2000);ctx.stroke();ctx.setLineDash([]);
+      ctx.strokeStyle='rgba(120,120,120,.5)';ctx.beginPath();ctx.moveTo(a.x*w,a.y*h);ctx.lineTo(b.x*w,b.y*h);ctx.stroke();dot(ctx,mx,my,2.5*dpr,acc,null,dpr);});}
+    pts.forEach((p,i)=>{dot(ctx,p.x*w,p.y*h,i===s.sel?6*dpr:4.5*dpr,i===s.sel?focus:ink,null,dpr);label(ctx,'P'+sub(i+1),p.x*w+8*dpr,p.y*h-9*dpr,dpr,ink2);});});
+  $('#f-poly-bis').addEventListener('change',()=>st.redraw());})();
+
+/* Step 4: polar */
+(()=>{const pts=[{x:.72,y:.32}];
+  mini('#f-polar',pts,(ctx,w,h,dpr)=>{gridBg(ctx,w,h,dpr,10);const ink=cssVar('--ink'),acc=cssVar('--accent2'),ink2=cssVar('--ink2');const cx=w/2,cy=h/2;const p=pts[0],X=p.x*w,Y=p.y*h;
+    ctx.strokeStyle=ink2;ctx.lineWidth=dpr;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(w,cy);ctx.stroke();label(ctx,'reference line (angle 0)',w-6*dpr,cy-10*dpr,dpr,ink2,'right');
+    const dx=X-cx,dy=cy-Y,r=Math.hypot(dx,dy);let ang=Math.atan2(dy,dx);if(ang<0)ang+=2*Math.PI;
+    ctx.strokeStyle=acc;ctx.lineWidth=2*dpr;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(X,Y);ctx.stroke();
+    ctx.strokeStyle=acc;ctx.lineWidth=1.5*dpr;ctx.beginPath();ctx.arc(cx,cy,Math.min(40*dpr,r*0.5),-ang,0);ctx.stroke();
+    ctx.setLineDash([4*dpr,4*dpr]);ctx.strokeStyle=ink2;ctx.lineWidth=dpr;ctx.beginPath();ctx.moveTo(X,Y);ctx.lineTo(X,cy);ctx.stroke();ctx.setLineDash([]);
+    dot(ctx,cx,cy,3*dpr,ink,null,dpr);label(ctx,'centre',cx-8*dpr,cy+12*dpr,dpr,ink2,'right');dot(ctx,X,Y,5.5*dpr,acc,null,dpr);
+    label(ctx,'r',cx+dx/2-10*dpr*Math.sign(dy||1),cy-dy/2-10*dpr,dpr,acc);label(ctx,'θ',cx+Math.min(50*dpr,r*0.5+12*dpr)*Math.cos(-ang/2),cy+Math.min(50*dpr,r*0.5+12*dpr)*Math.sin(-ang/2),dpr,acc,'center');
+    const u=10/w;$('#f-polar-read').textContent=`(x, y) = (${(p.x*10).toFixed(1)}, ${((1-p.y)*10).toFixed(1)})   ·   (r, θ) = (${(r/w*10).toFixed(2)}, ${(ang*180/Math.PI).toFixed(0)}°)`;});})();
+
+/* Step 5: growth calculator */
+(()=>{const cv=$('#f-grow');const rI=$('#f-grow-r'),gI=$('#f-grow-g');const st={cv,redraw(){const {ctx,w,h,dpr}=fitCanvas(cv);ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,w,h);const ink=cssVar('--ink'),acc=cssVar('--accent2'),ink2=cssVar('--ink2');
+    const r0=+rI.value,g=+gI.value,r1=r0*g;const sc=(w*0.9)/60;const cx=w*0.05,cy=h/2;ctx.strokeStyle=cssVar('--line');ctx.lineWidth=dpr;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(w*0.95,cy);ctx.stroke();
+    for(let i=0;i<=60;i+=10){ctx.beginPath();ctx.moveTo(cx+i*sc,cy-4*dpr);ctx.lineTo(cx+i*sc,cy+4*dpr);ctx.stroke();label(ctx,i,cx+i*sc,cy+14*dpr,dpr,ink2,'center');}
+    dot(ctx,cx,cy,3*dpr,ink,null,dpr);ctx.strokeStyle=acc;ctx.lineWidth=2*dpr;arrow(ctx,cx+r0*sc,cy-18*dpr,cx+r1*sc,cy-18*dpr,6*dpr);dot(ctx,cx+r0*sc,cy,5*dpr,ink2,null,dpr);dot(ctx,cx+r1*sc,cy,5*dpr,acc,null,dpr);
+    label(ctx,'r_old = '+r0,cx+r0*sc,cy-34*dpr,dpr,ink2,'center');label(ctx,'r_new = '+r1.toFixed(1),cx+r1*sc,cy+30*dpr,dpr,acc,'center');
+    $('#f-grow-read').textContent=`r_new = ${r0} × ${g.toFixed(1)} = ${r1.toFixed(1)}`;}};
+  rI.addEventListener('input',st.redraw);gI.addEventListener('input',st.redraw);figs.push(st);})();
+
+/* Anisotropy comparison */
+(()=>{const A=new PoreModel('BOL-ANISO',{count:90,irregularity:0.2,radialGrowth:1.5,circGrowth:1.5,anisotropy:1,boundaryNoise:0.1,competition:0.1,merge:0,wall:0.3,maturity:0.4});
+  const B=new PoreModel('BOL-ANISO',{count:90,irregularity:0.2,radialGrowth:1.5,circGrowth:1.5,anisotropy:1,boundaryNoise:0.1,competition:0.1,merge:0,wall:0.3,maturity:0.4});
+  const k=$('#f-aniso-k');const st={redraw(){const ratio=+k.value;const Gt=1.5;B.setMany({radialGrowth:Gt*ratio,circGrowth:Gt});
+    renderModel(A,$('#f-aniso-a'),{colorMode:'bio',depth:false,vignette:false,fitMax:1.5,axes:true});renderModel(B,$('#f-aniso-b'),{colorMode:'bio',depth:false,vignette:false,fitMax:1.5,axes:true});
+    $('#f-aniso-read').textContent=`Gᵣ/Gθ = ${ratio.toFixed(2)} → ${ratio>1.05?'radially elongated':ratio<0.95?'flattened into rings':'roughly isotropic'}`;}};
+  k.addEventListener('input',st.redraw);figs.push(st);})();
+
+/* Epsilon */
+(()=>{const M=new PoreModel('BOL-EPSILON',{count:140,irregularity:0.15,radialGrowth:1.4,circGrowth:1.4,anisotropy:1,boundaryNoise:0,competition:0,merge:0,wall:0.08,maturity:0.3});
+  const e=$('#f-eps');const st={redraw(){const v=+e.value;M.setMany({boundaryNoise:v,competition:v});renderModel(M,$('#f-eps-c'),{colorMode:'mono',fitMax:1.4,bounds:false});$('#f-eps-read').textContent=`ε = ${v.toFixed(2)}`;}};
+  e.addEventListener('input',st.redraw);figs.push(st);})();
+
+/* Gradient field */
+(()=>{const pts=[{x:.62,y:.4}];let img=null;
+  mini('#f-grad',pts,(ctx,w,h,dpr)=>{const c=pts[0];const sig=0.22;const G=(u,v)=>Math.exp(-((u-c.x)**2+((v-c.y)**2)*(h/w)**2)/(2*sig*sig));
+    const nx=120,ny=Math.round(120*h/w);const id=ctx.createImageData(nx,ny);const lo=hex(cssVar('--paper2').startsWith('#')?cssVar('--paper2'):'#e3e6dd'),hi=[246,220,150];
+    for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const g=G((i+.5)/nx,(j+.5)/ny);const col=mixRGB(lo,hi,g);const o=(j*nx+i)*4;id.data[o]=col[0];id.data[o+1]=col[1];id.data[o+2]=col[2];id.data[o+3]=255;}
+    const off=document.createElement('canvas');off.width=nx;off.height=ny;off.getContext('2d').putImageData(id,0,0);ctx.imageSmoothingEnabled=true;ctx.drawImage(off,0,0,w,h);
+    ctx.strokeStyle=cssVar('--ink');ctx.lineWidth=1.2*dpr;const n=11;for(let j=0;j<n;j++)for(let i=0;i<n;i++){const u=(i+.5)/n,v=(j+.5)/n;const g=G(u,v);const gx=-g*(u-c.x)/(sig*sig),gy=-g*(v-c.y)*(h/w)**2/(sig*sig);const m=Math.hypot(gx,gy);const L=Math.min(28*dpr,m*9*dpr);if(L<1.5*dpr){dot(ctx,u*w,v*h,1.2*dpr,cssVar('--ink2'),null,dpr);continue;}arrow(ctx,u*w-gx/m*L/2,v*h-gy/m*L/2,u*w+gx/m*L/2,v*h+gy/m*L/2,4*dpr);}
+    dot(ctx,c.x*w,c.y*h,6*dpr,cssVar('--accent2'),'#fff',dpr);label(ctx,'fastest growth here',c.x*w+12*dpr,c.y*h,dpr,cssVar('--ink'));});})();
+
+/* Pipeline */
+(()=>{const STAGES=[
+ ['Empty cap','The surface we are about to fill: a disc representing the underside of the cap. Nothing has been placed yet.',{showCells:false},0],
+ ['Seed points','Points are scattered across the disc, each one the future centre of a pore. They are laid down evenly to begin with.',{showCells:false,seeds:true},0],
+ ['Voronoi cells','Every location is given to its nearest seed. The tie-lines between neighbours become straight walls, and polygons appear. Nothing has been drawn by hand.',{colorMode:'mono',seeds:true},0],
+ ['Irregularity','The seeds are jittered and loosely clustered before the cells are computed, so cells vary in size and shape — a real cap does not start from a perfect grid.',{colorMode:'mono',seeds:true},0.5],
+ ['Radial growth','The cap expands: every distance from the centre is multiplied by the growth factor. The pattern enlarges but, with equal growth in every direction, keeps its shape.',{colorMode:'mono'},0.5],
+ ['Anisotropic deformation','Now the outward growth factor is larger than the sideways one. Cells lengthen along the spokes, most strongly toward the margin where the cap grows fastest. These are the same cells as before, stretched.',{colorMode:'mono',axes:true},0.5],
+ ['Boundary noise','A smooth random field nudges every wall point by a small amount, and neighbouring pores push unevenly against each other. Straight walls become organic. The ε of the growth rule.',{colorMode:'mono'},0.5],
+ ['Final organic pores','Walls are given thickness and colour, some walls across the radial direction are dropped so that pores join into channels, and the result is read as a mushroom.',{colorMode:'bio'},0.5]];
+  const P=[{radialGrowth:1,circGrowth:1,anisotropy:0,boundaryNoise:0,competition:0,merge:0},null,null,null,
+    {radialGrowth:1.6,circGrowth:1.6,anisotropy:0,boundaryNoise:0,competition:0,merge:0},
+    {radialGrowth:2.4,circGrowth:1.45,anisotropy:1,boundaryNoise:0,competition:0,merge:0},
+    {radialGrowth:2.4,circGrowth:1.45,anisotropy:1,boundaryNoise:0.45,competition:0.45,merge:0},
+    {radialGrowth:2.4,circGrowth:1.45,anisotropy:1,boundaryNoise:0.45,competition:0.45,merge:0.4}];
+  const M=new PoreModel('BOL-PIPELINE',{count:220,irregularity:0,wall:0.26,maturity:0.6,...P[0]});let cur=0;
+  const host=$('#pipe');STAGES.forEach((s,i)=>{const b=document.createElement('button');b.innerHTML=`<span class="i">${i+1}</span>${s[0]}`;b.addEventListener('click',()=>{cur=i;st.redraw();});host.appendChild(b);});
+  const st={redraw(){[...host.children].forEach((b,i)=>b.classList.toggle('on',i===cur));const s=STAGES[cur];M.setMany(Object.assign({irregularity:s[3]},P[Math.max(0,cur)]||P[0]));if(cur>=4)M.setMany(P[cur]);else M.setMany(P[0]);
+    renderModel(M,$('#f-pipe'),Object.assign({fitMax:1.6,walls:cur>=2},s[2]));$('#pipe-cap').innerHTML=`<strong>${cur+1}. ${s[0]}.</strong> ${s[1]}`;}};
+  figs.push(st);})();
+
+/* draw math figures when first shown & on resize */
+window.addEventListener('resize',()=>{if($('#view-math').classList.contains('active'))redrawMath();});
+for(const d of document.querySelectorAll('details'))d.addEventListener('toggle',()=>redrawMath());
+</script>
+</body>
+</html>
